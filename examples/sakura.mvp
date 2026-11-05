@@ -1,0 +1,175 @@
+{
+  "app_version": "0.1.0",
+  "format": "melovio-project",
+  "format_version": 1,
+  "loop": {
+    "enabled": false,
+    "end": 0,
+    "start": 0
+  },
+  "meta": {
+    "comment": "Traditional melody, simplified. Made with melovio-cli demo.",
+    "composer": "",
+    "created": "2026-11-04T05:29:18Z",
+    "lyricist": "",
+    "modified": "2026-11-04T05:29:18Z",
+    "title": "Sakura (demo)"
+  },
+  "next_note_id": 15,
+  "settings": {
+    "ppq": 480,
+    "sample_rate": 44100
+  },
+  "tempo_map": [
+    {
+      "bpm": 72.0,
+      "tick": 0
+    }
+  ],
+  "time_signatures": [
+    {
+      "bar": 0,
+      "denominator": 4,
+      "numerator": 4
+    }
+  ],
+  "tracks": [
+    {
+      "auto_expression": false,
+      "gain_db": 0.0,
+      "id": "trk_779872c2",
+      "lanes": [],
+      "mute": false,
+      "name": "Lead",
+      "natural": 0.0,
+      "natural_take": 1,
+      "notes": [
+        {
+          "id": 1,
+          "length": 460,
+          "lyric": "さ",
+          "pitch": 69,
+          "tick": 0,
+          "velocity": 0.75
+        },
+        {
+          "id": 2,
+          "length": 460,
+          "lyric": "く",
+          "pitch": 69,
+          "tick": 480,
+          "velocity": 0.75
+        },
+        {
+          "id": 3,
+          "length": 940,
+          "lyric": "ら",
+          "pitch": 71,
+          "tick": 960,
+          "velocity": 0.75
+        },
+        {
+          "id": 4,
+          "length": 460,
+          "lyric": "さ",
+          "pitch": 69,
+          "tick": 1920,
+          "velocity": 0.75
+        },
+        {
+          "id": 5,
+          "length": 460,
+          "lyric": "く",
+          "pitch": 69,
+          "tick": 2400,
+          "velocity": 0.75
+        },
+        {
+          "id": 6,
+          "length": 940,
+          "lyric": "ら",
+          "pitch": 71,
+          "tick": 2880,
+          "velocity": 0.75
+        },
+        {
+          "id": 7,
+          "length": 460,
+          "lyric": "さ",
+          "pitch": 69,
+          "tick": 3840,
+          "velocity": 0.75
+        },
+        {
+          "id": 8,
+          "length": 460,
+          "lyric": "く",
+          "pitch": 71,
+          "tick": 4320,
+          "velocity": 0.75
+        },
+        {
+          "id": 9,
+          "length": 460,
+          "lyric": "ら",
+          "pitch": 72,
+          "tick": 4800,
+          "velocity": 0.75
+        },
+        {
+          "id": 10,
+          "length": 460,
+          "lyric": "さ",
+          "pitch": 71,
+          "tick": 5280,
+          "velocity": 0.75
+        },
+        {
+          "id": 11,
+          "length": 460,
+          "lyric": "く",
+          "pitch": 69,
+          "tick": 5760,
+          "velocity": 0.75
+        },
+        {
+          "id": 12,
+          "length": 460,
+          "lyric": "ら",
+          "pitch": 71,
+          "tick": 6240,
+          "velocity": 0.75
+        },
+        {
+          "id": 13,
+          "length": 460,
+          "lyric": "ぁ",
+          "pitch": 72,
+          "tick": 6720,
+          "velocity": 0.75
+        },
+        {
+          "id": 14,
+          "length": 460,
+          "lyric": "ー",
+          "pitch": 71,
+          "tick": 7200,
+          "velocity": 0.75
+        }
+      ],
+      "pan": 0.0,
+      "persona": "",
+      "persona_amount": 1.0,
+      "solo": false,
+      "style": {},
+      "voicebank": "yune"
+    }
+  ],
+  "voicebanks": [
+    {
+      "id": "yune",
+      "name": "yune",
+      "version": "2.0.0"
+    }
+  ]
+}
