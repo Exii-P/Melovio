@@ -24,7 +24,6 @@ include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 find_package(Threads REQUIRED)
 
-# ---- small, pinned third-party dependencies (see docs/ARCHITECTURE.md "Dependencies") -------------
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_Declare(nlohmann_json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.11.3 GIT_SHALLOW ON)
@@ -52,7 +51,6 @@ function(melovio_warnings target)
   endif()
 endfunction()
 
-# ---- core library (no GUI, no audio device) --------------------------------------------------------
 add_library(melovio_core STATIC
   src/core/util.cpp
   src/core/timeline.cpp
@@ -87,7 +85,6 @@ add_custom_target(melovio_voicebanks ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${MELOVIO_BUNDLED_VOICEBANKS_DIR}" "${CMAKE_BINARY_DIR}/voicebanks"
   COMMENT "Copying bundled voicebanks")
 
-# ---- command-line tool -----------------------------------------------------------------------------
 if(MELOVIO_BUILD_CLI)
   add_executable(melovio-cli src/cli/main.cpp)
   target_link_libraries(melovio-cli PRIVATE melovio_core)
@@ -95,7 +92,6 @@ if(MELOVIO_BUILD_CLI)
   add_dependencies(melovio-cli melovio_voicebanks)
 endif()
 
-# ---- tests -----------------------------------------------------------------------------------------
 if(MELOVIO_BUILD_TESTS)
   enable_testing()
   FetchContent_Declare(doctest GIT_REPOSITORY https://github.com/doctest/doctest.git GIT_TAG v2.4.11 GIT_SHALLOW ON)
@@ -111,7 +107,6 @@ if(MELOVIO_BUILD_TESTS)
   add_test(NAME melovio_tests COMMAND melovio_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
-# ---- GUI: audio backend + Melovio Studio -----------------------------------------------------------
 if(MELOVIO_BUILD_GUI)
   find_package(SDL2 QUIET)
   if(NOT SDL2_FOUND)
