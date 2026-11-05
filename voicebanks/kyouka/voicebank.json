@@ -1,0 +1,38 @@
+{
+  "format": "melovio-voicebank",
+  "format_version": 1,
+  "id": "kyouka",
+  "version": "2.1.0",
+  "name": "Kyouka",
+  "native_name": "響花",
+  "author": "Exii-P",
+  "license": "MIT",
+  "description": "Bright, delicate, crystalline.",
+  "tagline": "Female, bright and delicate",
+  "languages": [
+    "ja"
+  ],
+  "tags": [
+    "parametric",
+    "formant",
+    "japanese"
+  ],
+  "character": {
+    "notes": "Bright, delicate, crystalline."
+  },
+  "synthesis": {
+    "engine": "wauvio-vocal",
+    "engine_version": "v2",
+    "kind": "parametric-formant",
+    "profile": "voice.voice"
+  },
+  "phonetics": {
+    "recordings": [],
+    "mappings": {},
+    "preview_lyric": "さくらさくら"
+  },
+  "compatibility": {
+    "min_melovio": "0.1.0"
+  },
+  "completeness": "Parametric voice derived from Yune; no recordings."
+}

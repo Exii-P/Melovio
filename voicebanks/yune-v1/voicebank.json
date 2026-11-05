@@ -5,8 +5,8 @@
   "version": "1.5.2",
   "name": "Yune",
   "native_name": "夢音",
-  "author": "Wauvio project",
-  "license": "Same terms as the Wauvio-CPP repository it was taken from (verify before redistributing)",
+  "author": "artdoesstuff",
+  "license": "MIT",
   "description": "Bright, clear Japanese female singing voice with peripheral vowels for clarity and tight resonances. The default Wauvio-Vocal character.",
   "tagline": "Female, bright and clear",
   "languages": [

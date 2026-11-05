@@ -1,12 +1,12 @@
 # Wauvio voice profile. Every value is explicit; edit and load with load_profile().
-voice yune
-display Yune (夢音)
+voice kyouka
+display Kyouka (響花)
 language ja
-notes Bright, clear Japanese female singing voice; peripheral vowels for clarity, tight resonances.
+notes Bright, delicate, crystalline.
 natural_amount 0.54
 
 # model
-model_name Yune: Japanese default female voice
+model_name Kyo: bright, delicate, crystalline
 range 52 88 40 96
 vowel a 880 1480 3000 135 130 190 1 0.85 0
 vowel i 330 2850 3500 95 150 200 1 0.45 0
