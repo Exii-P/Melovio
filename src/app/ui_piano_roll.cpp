@@ -61,7 +61,7 @@ namespace melovio::ui {
         auto X = [&](double tick) { return static_cast<float>(gx0 + (tick - a.view.scroll_tick) * ppt); };
         auto TickAt = [&](float x) { return static_cast<Tick>(std::llround(a.view.scroll_tick + (x - gx0) / ppt)); };
         auto Y = [&](int pitch) { return gy0 + (a.view.top_pitch - static_cast<float>(pitch)) * pst; };
-        auto PitchAt = [&](float y) { return static_cast<int>(std::floor(a.view.top_pitch - (y - gy0) / pst)) ; };
+        auto PitchAt = [&](float y) { return static_cast<int>(std::ceil(a.view.top_pitch - (y - gy0) / pst)); };
         const int vis_rows = static_cast<int>((gy1 - gy0) / pst) + 2;
         a.view.top_pitch = std::clamp(a.view.top_pitch, static_cast<float>(vis_rows - 3), 128.f);
         a.view.scroll_tick = std::max(0.0, a.view.scroll_tick);
