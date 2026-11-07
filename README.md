@@ -30,7 +30,7 @@ Melovio is a standalone desktop application for writing Japanese singing-voice s
 | CLI | `melovio-cli` | validate / render / package / analyze without a GUI |
 | Tests | `melovio_tests` | doctest suite |
 
-Bundled voicebanks: **Yune**, **Koharu**, **Reiha**, **Itsuki**, **Kyo**.
+Bundled voicebanks: **Yune**, **Koharu**, **Reiha**, **Itsuki**, **Kyouka**.
 
 ## Quick start
 
