@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Melovio VERSION 0.1.0 LANGUAGES C CXX)
+project(Melovio VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,6 +67,7 @@ add_library(melovio_core STATIC
   src/core/export.cpp
   src/core/transport.cpp
   src/core/config.cpp
+  src/core/midi.cpp
   src/core/vb_validate.cpp
 )
 target_include_directories(melovio_core PUBLIC src)

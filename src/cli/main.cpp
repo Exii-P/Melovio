@@ -1,6 +1,7 @@
 // melovio-cli: headless access to everything Melovio Studio does with data: validate, render, export, inspect voicebanks.
 #include "core/config.hpp"
 #include "core/export.hpp"
+#include "core/midi.hpp"
 #include "core/project_io.hpp"
 #include "core/pronunciation.hpp"
 #include "core/voicebank_library.hpp"
@@ -21,6 +22,8 @@ static void usage() {
         "  melovio-cli validate <project.mvp>             preflight a project (voicebanks, lyrics, ranges)\n"
         "  melovio-cli render <project.mvp> <out.wav> [--sr N] [--bits 16|24|32] [--mono] [--normalize] [--track ID]\n"
         "                                                [--from-bar N --to-bar M]\n"
+        "  melovio-cli export-midi <project.mvp> <out.mid>   write the project as a Standard MIDI File (lyrics included)\n"
+        "  melovio-cli import-midi <in.mid> <out.mvp> [--voicebank ID] [--lyrics-from-sheet FILE.txt]   create a project from a MIDI file\n"
         "  melovio-cli analyze <lyric>                    show the phoneme sequence for a lyric\n"
         "  melovio-cli demo <out.mvp> [voicebank-id]      write a small demo project (Sakura)\n");
 }
@@ -79,6 +82,30 @@ int main(int argc, char** argv) {
         if (!r) { std::printf("error: %s\n", r.error.c_str()); return 1; }
         Status s = lib.export_package(*r, path_from_utf8(argv[3]));
         std::printf("%s\n", s ? "ok" : s.message.c_str()); return s ? 0 : 1;
+    }
+    if (cmd == "export-midi" && argc >= 4) {
+        auto pr = load_project(path_from_utf8(argv[2])); if (!pr) { std::printf("error: %s\n", pr.error.c_str()); return 1; }
+        Status st = write_midi_file(path_from_utf8(argv[3]), *pr);
+        std::printf("%s\n", st ? "ok" : st.message.c_str()); return st ? 0 : 1;
+    }
+    if (cmd == "import-midi" && argc >= 4) {
+        std::string vb = "yune", sheet;
+        for (int i = 4; i + 1 < argc; ++i) { if (!std::strcmp(argv[i], "--voicebank")) vb = argv[++i]; else if (!std::strcmp(argv[i], "--lyrics-from-sheet")) sheet = argv[++i]; }
+        auto mf = read_midi_file(path_from_utf8(argv[2])); if (!mf) { std::printf("error: %s\n", mf.error.c_str()); return 1; }
+        Project p; MidiImportOptions o; o.voicebank_id = vb; o.import_tempo = true;
+        for (size_t i = 0; i < mf->tracks.size(); ++i) o.tracks.push_back(i);
+        std::vector<Diagnostic> d; auto r = import_midi(p, *mf, o, &d);
+        if (!r) { std::printf("error: %s\n", r.error.c_str()); return 1; }
+        if (!sheet.empty()) {
+            std::string err; const std::string txt = read_text_file(path_from_utf8(sheet), &err);
+            if (!err.empty()) { std::printf("error: %s\n", err.c_str()); return 1; }
+            auto units = parse_lyric_sheet(txt, LyricSheetMode::Morae); size_t k = 0;
+            for (auto& t : p.tracks) for (auto& n : t.notes) if (k < units.size()) n.lyric = units[k++];
+            std::printf("assigned %zu of %zu sheet units\n", k, units.size());
+        }
+        print_diags(d);
+        Status st = save_project(p, path_from_utf8(argv[3]));
+        std::printf("%zu track(s), %zu note(s): %s\n", r->tracks_added, r->notes_added, st ? "ok" : st.message.c_str()); return st ? 0 : 1;
     }
     if (cmd == "analyze" && argc >= 3) {
         PronunciationEngine pe; auto a = pe.analyze(argv[2]);

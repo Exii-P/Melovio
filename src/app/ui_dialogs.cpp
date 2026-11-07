@@ -233,7 +233,7 @@ namespace melovio::ui {
 
     void draw_dialogs(App& a) {
         draw_export(a); draw_settings(a); draw_recovery(a); draw_missing(a); draw_unsaved(a); draw_about(a);
-        draw_log(a); draw_toasts(a);
+        draw_midi_dialogs(a); draw_log(a); draw_toasts(a);
         a.file_dialog.draw();
         if (a.show_demo) ImGui::ShowDemoWindow(&a.show_demo);
     }

@@ -152,6 +152,10 @@ namespace melovio::ui {
     void draw_phonemes(App& a);
     void draw_voicebanks(App& a);
     void draw_workshop(App& a);
+    void begin_midi_import(App& a);          // asks for a .mid file, then shows the import dialog
+    void load_midi_for_import(App& a, const fs::path& file);   // same as picking the file in the dialog
+    void begin_midi_export(App& a);
+    void draw_midi_dialogs(App& a);
     void draw_dialogs(App& a);
     void draw_transport_bar(App& a);
     void draw_main_menu(App& a);

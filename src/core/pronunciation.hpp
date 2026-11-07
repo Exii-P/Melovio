@@ -86,6 +86,11 @@ namespace melovio {
     // Splits typed lyrics into one unit per note. Whitespace, '|' ',' '/' separate explicitly; otherwise kana/romaji are split into morae
     // (きゃ and しゅ stay together, っ ん ー are their own units). {…} phoneme groups stay intact.
     std::vector<std::string> split_lyric_units(const std::string& text);
+    enum class LyricSheetMode { Words, Morae };
+    // Turns a pasted lyric sheet into one lyric per note. "[Chorus - Both]" style header lines are dropped when skip_headers is set,
+    // punctuation (！ ？ 。 、 … 「」 and ASCII equivalents) is removed. Words: whitespace-separated words (a {phoneme group} stays whole);
+    // Morae: every word is further split into kana units with split_lyric_units.
+    std::vector<std::string> parse_lyric_sheet(const std::string& text, LyricSheetMode mode, bool skip_headers = true);
     // Particles read differently from how they are written: は -> wa, へ -> e, を -> o. Returns the phoneme override ("w a") or "".
     std::string particle_pronunciation(const std::string& lyric);
     // Hiragana <-> katakana helpers for display.

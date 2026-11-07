@@ -2,6 +2,7 @@
 #include "wauvio_vocal/yune-v2/japanese.hpp"
 #include <algorithm>
 #include <fstream>
+#include <cstring>
 #include <sstream>
 
 namespace melovio {
@@ -266,5 +267,48 @@ namespace melovio {
     std::string PronunciationEngine::engine_lyric(const std::string& lyric, const std::string& ov) const {
         if (!ov.empty()) { std::string t = ov; const size_t x = t.find_first_not_of(" \t{"), y = t.find_last_not_of(" \t}"); t = x == std::string::npos ? "" : t.substr(x, y - x + 1); return "{" + t + "}"; }
         std::vector<Diagnostic> d; return apply_readings(lyric, d);
+    }
+
+    std::vector<std::string> parse_lyric_sheet(const std::string& text, LyricSheetMode mode, bool skip_headers) {
+        static const char* kDrop[] = { "！", "？", "。", "、", "…", "‥", "「", "」", "『", "』", "（", "）", "・", "，", "．", "〜", "～", "♪", "♡", "☆", "!", "?", ",", ".", "~", "(", ")", "\"" };
+        std::vector<std::string> out;
+        std::istringstream lines(text); std::string line;
+        while (std::getline(lines, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            size_t a = 0;
+            while (a < line.size()) {
+                if (line[a] == ' ' || line[a] == '\t') ++a;
+                else if (line.compare(a, 3, "\xE3\x80\x80") == 0) a += 3;      // U+3000
+                else break;
+            }
+            if (a >= line.size()) continue;
+            const std::string body = line.substr(a);
+            if (skip_headers && (body[0] == '[' || body.compare(0, 3, "【") == 0)) {
+                const size_t close = body.find_last_of("]】");
+                if (close != std::string::npos && close + 1 >= body.size() - 2) continue;      // the whole line is a header
+            }
+            std::string clean;
+            for (size_t i = 0; i < body.size();) {
+                if (skip_headers && body[i] == '[') { const size_t c = body.find(']', i); if (c != std::string::npos) { i = c + 1; continue; } }
+                bool dropped = false;
+                for (const char* d : kDrop) { const size_t n = std::strlen(d); if (body.compare(i, n, d) == 0) { clean += ' '; i += n; dropped = true; break; } }
+                if (dropped) continue;
+                clean += body[i++];
+            }
+            std::vector<std::string> words; std::string cur; int depth = 0;
+            for (size_t i = 0; i < clean.size(); ++i) {
+                const char c = clean[i];
+                const bool ws = c == ' ' || c == '\t' || (static_cast<unsigned char>(c) == 0xE3 && i + 2 < clean.size() && static_cast<unsigned char>(clean[i + 1]) == 0x80 && static_cast<unsigned char>(clean[i + 2]) == 0x80);
+                if (c == '{') ++depth; if (c == '}' && depth > 0) --depth;
+                if (ws && depth == 0) { if (!cur.empty()) words.push_back(cur); cur.clear(); if (static_cast<unsigned char>(c) == 0xE3) i += 2; }
+                else cur += c;
+            }
+            if (!cur.empty()) words.push_back(cur);
+            for (auto& w : words) {
+                if (mode == LyricSheetMode::Words) out.push_back(w);
+                else for (auto& u : split_lyric_units(w)) out.push_back(u);
+            }
+        }
+        return out;
     }
 }

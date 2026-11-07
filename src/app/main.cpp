@@ -24,6 +24,7 @@ namespace {
         bool show_workshop = false, show_log = false, select_all = false, show_voicebanks_only = false;
         int select_note = -1;
         std::string focus;                  // window name to focus before the screenshot
+        std::string midi;                   // open the MIDI import dialog for this file at start-up (testing aid)
         std::string script;                 // UI automation script (see docs/DEVELOPMENT.md): click/drag/key/wait/shot
         bool help = false;
     };
@@ -43,6 +44,7 @@ namespace {
             else if (s == "--select-note") a.select_note = std::atoi(next().c_str());
             else if (s == "--focus") a.focus = next();
             else if (s == "--script") a.script = next();
+            else if (s == "--import-midi") a.midi = next();
             else if (s[0] != '-') a.open = s;
         }
         return a;
@@ -149,6 +151,7 @@ int main(int argc, char** argv) {
     if (char* base = SDL_GetBasePath()) { exe = fs::path(base); SDL_free(base); }
     app.init(exe, args.open);
     app.show_workshop = args.show_workshop; app.show_log = args.show_log;
+    if (!args.midi.empty()) load_midi_for_import(app, path_from_utf8(args.midi));
     if (args.select_all) app.select_all();
     if (args.select_note >= 0) if (Track* t = app.cur_track(); t && static_cast<size_t>(args.select_note) < t->notes.size()) app.select_only(t->notes[static_cast<size_t>(args.select_note)].id);
 

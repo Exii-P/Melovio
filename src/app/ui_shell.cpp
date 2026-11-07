@@ -99,6 +99,9 @@ namespace melovio::ui {
             if (ImGui::MenuItem("Project settings...")) a.open_settings = true;
             if (ImGui::MenuItem("Export audio...", "Ctrl+E")) a.open_export = true;
             ImGui::Separator();
+            if (ImGui::MenuItem("Import MIDI...")) begin_midi_import(a);
+            if (ImGui::MenuItem("Export MIDI...")) begin_midi_export(a);
+            ImGui::Separator();
             if (ImGui::MenuItem("Quit")) a.request_close_project([&a] { a.quit_requested = true; });
             ImGui::EndMenu();
         }
