@@ -4,23 +4,23 @@
 using namespace melovio;
 
 namespace {
-Project sample_project() {
-    Project p;
-    p.tempo_map.set_tempi({ { 0, 172.0 }, { 480 * 8, 120.0 } });
-    p.tempo_map.set_signatures({ { 0, 4, 4 }, { 2, 3, 4 } });
-    p.add_track("Kyo", "yune");
-    p.add_track("Yune", "yune");
-    Track& a = p.tracks[0];
-    Track& b = p.tracks[1];
-    const char* ly[] = { "さ", "く", "ら" };
-    for (int i = 0; i < 3; ++i) { Note n; n.tick = i * 480; n.length = 400; n.pitch = 69 + i; n.lyric = ly[i]; n.velocity = 0.8f; p.add_note(a, n); }
-    Note m; m.tick = 240; m.length = 960; m.pitch = 60; m.lyric = "ねえ"; m.velocity = 0.5f; p.add_note(b, m);
-    return p;
-}
+    Project sample_project() {
+        Project p;
+        p.tempo_map.set_tempi({ { 0, 172.0 }, { 480 * 8, 120.0 } });
+        p.tempo_map.set_signatures({ { 0, 4, 4 }, { 2, 3, 4 } });
+        p.add_track("Kyo", "yune");
+        p.add_track("Yune", "yune");
+        Track& a = p.tracks[0];
+        Track& b = p.tracks[1];
+        const char* ly[] = { "さ", "く", "ら" };
+        for (int i = 0; i < 3; ++i) { Note n; n.tick = i * 480; n.length = 400; n.pitch = 69 + i; n.lyric = ly[i]; n.velocity = 0.8f; p.add_note(a, n); }
+        Note m; m.tick = 240; m.length = 960; m.pitch = 60; m.lyric = "ねえ"; m.velocity = 0.5f; p.add_note(b, m);
+        return p;
+    }
 
-std::string be16(int v) { return std::string{ static_cast<char>(v >> 8), static_cast<char>(v & 255) }; }
-std::string chunk(const char* id, const std::string& body) { std::string s = id; for (int i = 3; i >= 0; --i) s.push_back(static_cast<char>((body.size() >> (8 * i)) & 255)); return s + body; }
-std::string header(int format, int n, int div) { return chunk("MThd", be16(format) + be16(n) + be16(div)); }
+    std::string be16(int v) { return std::string{ static_cast<char>(v >> 8), static_cast<char>(v & 255) }; }
+    std::string chunk(const char* id, const std::string& body) { std::string s = id; for (int i = 3; i >= 0; --i) s.push_back(static_cast<char>((body.size() >> (8 * i)) & 255)); return s + body; }
+    std::string header(int format, int n, int div) { return chunk("MThd", be16(format) + be16(n) + be16(div)); }
 }
 
 TEST_CASE("midi: project -> MIDI -> project round trip keeps notes, lyrics, tempo and signatures") {
@@ -153,4 +153,49 @@ TEST_CASE("lyric sheet: headers and punctuation are dropped, words and morae mod
     auto group = parse_lyric_sheet("{k a} あ", LyricSheetMode::Words);
     CHECK(group.size() == 2);
     CHECK(group[0] == "{k a}");
+}
+
+TEST_CASE("markers: sorted insert, section_end, JSON round trip, MIDI round trip") {
+    Project p = sample_project();
+    p.add_marker(480 * 8, "Chorus");
+    p.add_marker(0, "Intro");
+    p.add_marker(480 * 4, "Verse");
+    REQUIRE(p.markers.size() == 3);
+    CHECK(p.markers[0].name == "Intro");
+    CHECK(p.markers[2].name == "Chorus");
+    CHECK(p.section_end(p.markers[0]) == 480 * 4);
+    CHECK(p.section_end(p.markers[2]) > p.markers[2].tick);       // last section: runs to the end of the song
+    CHECK(p.find_marker(p.markers[1].id) != nullptr);
+
+    auto q = project_from_json(project_to_json(p));
+    REQUIRE(q.ok());
+    REQUIRE(q->markers.size() == 3);
+    CHECK(q->markers[1].name == "Verse");
+    CHECK(q->markers[1].tick == 480 * 4);
+    CHECK(q->markers[1].id == p.markers[1].id);
+
+    // Older files have no "markers" key and still load.
+    Project plain = sample_project();
+    auto txt = project_to_json(plain);
+    auto r = project_from_json(txt);
+    REQUIRE(r.ok());
+    CHECK(r->markers.empty());
+
+    auto bytes = encode_midi(p);
+    REQUIRE(bytes.ok());
+    auto f = parse_midi(*bytes);
+    REQUIRE(f.ok());
+    REQUIRE(f->markers.size() == 3);
+    CHECK(f->markers[2].name == "Chorus");
+    Project dst;
+    MidiImportOptions o; o.tracks = { 0 }; o.voicebank_id = "yune";
+    REQUIRE(import_midi(dst, *f, o).ok());
+    REQUIRE(dst.markers.size() == 3);
+    CHECK(dst.markers[1].tick == 480 * 4);
+    MidiImportOptions o2 = o; o2.import_markers = false;
+    Project dst2; REQUIRE(import_midi(dst2, *f, o2).ok());
+    CHECK(dst2.markers.empty());
+
+    p.remove_marker(p.markers[1].id);
+    CHECK(p.markers.size() == 2);
 }

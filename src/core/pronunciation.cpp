@@ -299,7 +299,8 @@ namespace melovio {
             for (size_t i = 0; i < clean.size(); ++i) {
                 const char c = clean[i];
                 const bool ws = c == ' ' || c == '\t' || (static_cast<unsigned char>(c) == 0xE3 && i + 2 < clean.size() && static_cast<unsigned char>(clean[i + 1]) == 0x80 && static_cast<unsigned char>(clean[i + 2]) == 0x80);
-                if (c == '{') ++depth; if (c == '}' && depth > 0) --depth;
+                if (c == '{') ++depth;
+                if (c == '}' && depth > 0) --depth;
                 if (ws && depth == 0) { if (!cur.empty()) words.push_back(cur); cur.clear(); if (static_cast<unsigned char>(c) == 0xE3) i += 2; }
                 else cur += c;
             }

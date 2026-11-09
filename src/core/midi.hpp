@@ -11,11 +11,13 @@ namespace melovio {
     struct MidiSignature { Tick tick = 0; int numerator = 4; int denominator = 4; };
 
     // Everything is in the file's own ticks (`ppq`); conversion to project ticks happens in import_midi.
+    struct MidiMarker { Tick tick = 0; std::string name; };
     struct MidiFile {
         int format = 1;
         int ppq = 480;
         std::vector<MidiTempo> tempi;
         std::vector<MidiSignature> signatures;
+        std::vector<MidiMarker> markers;              // Marker meta events (FF 06) from any track
         std::vector<MidiTrack> tracks;                // only tracks that contain notes (format 0 is split by channel)
         std::vector<Diagnostic> diagnostics;          // problems found while parsing (all warnings; hard failures are errors)
     };
@@ -27,6 +29,7 @@ namespace melovio {
         std::vector<size_t> tracks;                   // indices into MidiFile::tracks to import
         std::string voicebank_id = "yune";
         std::string default_lyric = "あ";             // for notes without a lyric event
+        bool import_markers = true;                   // add the file's markers (section names) to the project
         bool import_tempo = false;                    // replace the project's tempo map and time signatures with the file's
     };
     struct MidiImportSummary { size_t tracks_added = 0, notes_added = 0, notes_lost_to_overlap = 0, notes_without_lyric = 0; };

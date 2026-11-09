@@ -91,6 +91,27 @@ namespace melovio {
     }
     Tick Project::end_tick() const { Tick e = 0; for (auto& t : tracks) e = std::max(e, t.end_tick()); return e; }
 
+    void Project::sort_markers() {
+        std::stable_sort(markers.begin(), markers.end(), [](const Marker& a, const Marker& b) { return a.tick < b.tick; });
+    }
+    Marker& Project::add_marker(Tick tick, const std::string& name) {
+        Marker m; m.id = make_id("mk"); m.tick = std::max<Tick>(0, tick); m.name = name;
+        markers.push_back(std::move(m)); const std::string id = markers.back().id;
+        sort_markers();
+        return *find_marker(id);
+    }
+    Marker* Project::find_marker(const std::string& id) {
+        for (auto& m : markers) if (m.id == id) return &m;
+        return nullptr;
+    }
+    void Project::remove_marker(const std::string& id) {
+        markers.erase(std::remove_if(markers.begin(), markers.end(), [&](const Marker& m) { return m.id == id; }), markers.end());
+    }
+    Tick Project::section_end(const Marker& m) const {
+        for (auto& o : markers) if (o.tick > m.tick) return o.tick;
+        return std::max<Tick>(m.tick + 1, end_tick());
+    }
+
     std::vector<Diagnostic> validate_project(const Project& p) {
         std::vector<Diagnostic> d;
         auto add = [&](Severity s, const char* c, std::string m) { d.push_back({ s, c, std::move(m) }); };
@@ -109,6 +130,11 @@ namespace melovio {
                 if (n.lyric.empty() && n.phonemes.empty()) add(Severity::Warning, "note.no_lyric", at + "no lyric");
                 for (auto& kv : n.params) if (!find_param(kv.first) || !find_param(kv.first)->note_param) add(Severity::Warning, "note.unknown_param", at + "unsupported parameter '" + kv.first + "'");
             }
+        }
+        std::set<std::string> mids;
+        for (auto& m : p.markers) {
+            if (m.tick < 0) add(Severity::Warning, "project.marker_tick", "marker '" + m.name + "' is before the start of the song");
+            if (!mids.insert(m.id).second) add(Severity::Warning, "project.duplicate_marker_id", "duplicate marker id " + m.id);
         }
         return d;
     }

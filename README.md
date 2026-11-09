@@ -1,6 +1,8 @@
 # Melovio
 
-Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with a pronunciation (phoneme) editor, a voicebank manager, a voicebank workshop, and WAV export.
+Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with section markers, a tempo strip and a velocity lane, a pronunciation (phoneme) editor, MIDI and lyric-sheet import/export, a voicebank manager, a voicebank workshop, and WAV export.
+
+Current version: **0.3.0**.
 
 **Melovio Studio** is the application; **Wauvio-Vocal** is the synthesis backend it uses. They are separate things: the backend is vendored unmodified in `third_party/wauvio-cpp/` and is only touched through one bridge file (`src/core/engine_bridge.cpp`).
 
@@ -30,7 +32,7 @@ Melovio is a standalone desktop application for writing Japanese singing-voice s
 | CLI | `melovio-cli` | validate / render / package / analyze without a GUI |
 | Tests | `melovio_tests` | doctest suite |
 
-Bundled voicebanks: **Yune**, **Koharu**, **Reiha**, **Itsuki**, **Kyouka**.
+Bundled voicebanks (in `voicebanks/`): Yune (1.5.2 and 1.0.0), Koharu, Reiha, Itsuki and Kyo. The Voicebanks panel (or `melovio-cli voicebanks`) shows what is installed.
 
 ## Quick start
 
@@ -93,15 +95,8 @@ Installs `bin/melovio-studio`, `bin/melovio-cli`, and the bundled voicebanks to 
 
 Extra voicebank search folders: set `MELOVIO_VOICEBANKS` (path list) or the `voicebank_dirs` setting.
 
-### Running headless (CI / servers)
-
-`melovio-cli` works without a display. `melovio-studio` needs a window system; under Xvfb it runs with Mesa software rendering:
-
-```sh
-xvfb-run -a ./build/melovio-studio --frames 30 --screenshot out.bmp
-```
-
-Without an audio device the editor still opens and export works; playback reports "No audio device".
+### Without a display or audio device
+`melovio-cli` works without a display. Without an audio device `melovio-studio` still opens and export works; playback reports "No audio device".
 
 ### Troubleshooting
 - *"wauvio_vocal_v2.hpp not found"* – `third_party/wauvio-cpp` is missing or `MELOVIO_WAUVIO_DIR` is wrong.
@@ -128,9 +123,27 @@ If a project needs a voicebank that is not installed you get a dialog with **Loc
 - Right-click for the context menu (cut/copy/paste/delete/transpose/quantize...). Ctrl+C/X/V copy/cut/paste at the cursor, Del deletes, Q quantizes to the grid, arrows nudge (Up/Down transpose, Shift = octave).
 - **Grid**: 1/4, 1/8, 1/16, 1/32 and triplets. **Snap** toggles snapping (hold Alt to bypass).
 - Zoom with the H/V sliders, Ctrl+wheel (time) or Ctrl+Shift+wheel (pitch); wheel scrolls pitch, Shift+wheel scrolls time, middle-drag pans. **Follow** keeps the playhead in view.
-- Click the ruler to set the cursor/playhead; drag the thin strip above the ruler to set the **loop** region (Loop checkbox or L).
+- Click the ruler to set the cursor/playhead; drag the thin strip under the ruler to set the **loop** region (Loop checkbox or L).
+- **Section markers** (strip under the loop strip): double-click empty space to add one and type its name (Chorus, Breakdown...). Drag to move it (snaps to the grid), click to jump the cursor to it, double-click to rename. Right-click: *Rename, Jump here, Loop this section, Select notes in section, Delete*. The toolbar has **+ Marker** (adds at the cursor) and a **Go to marker** list. Markers are navigation aids only; they do not affect the sound.
+- **Tempo strip** (under the markers): every tempo change is shown with its BPM. Double-click empty space to add a change (it starts from the tempo already in force), double-click a flag to type a BPM, drag a flag to move it, right-click for *Edit BPM / Delete*. The change at the very start can be edited but not moved or deleted. Tempo changes are steps, not ramps. Time-signature changes are edited in Project settings.
 - Notes are monophonic per track: overlapping notes are trimmed. Notes the engine cannot sing (red) or outside the voice's range (amber/red) are flagged.
 - Undo/redo: Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z). Continuous drags and slider moves collapse into one step.
+
+### MIDI and lyric sheets
+
+**Import MIDI** (File > Import MIDI..., or `melovio-cli import-midi in.mid out.mvp`):
+- Standard MIDI Files, format 0, 1 or 2, with ticks-per-quarter timing (SMPTE timing is refused). Resolution is converted to 480 PPQ.
+- A format 0 file is split by channel into one track per channel; a format 1 file gives one track per MIDI track that has notes.
+- The dialog lists the file's tracks (note count, pitch range, lyric count); pick which to import and which voicebank they use.
+- Notes become monophonic lines: a chord keeps its **highest** note and overlapping notes are trimmed. The dialog and log say how many notes were dropped.
+- Lyrics come from Lyric events (FF 05), or from Text events (FF 01) when most of them sit on note starts. They must be UTF-8: Shift-JIS lyric events are skipped with a warning. `-` and `+` continuation markers are ignored. Notes without a lyric get the dialog's default lyric (あ).
+- Marker events (FF 06) become project markers. Importing the same file twice duplicates them.
+- Tempo and time signatures are only taken over if you tick *Replace the project's tempo and time signatures* (on by default when the project is empty). Signature changes that are not on a bar line move to the nearest bar, with a warning.
+- Velocity is kept. Pitch bend, controllers, program changes and drums are ignored.
+
+**Export MIDI** (File > Export MIDI..., or `melovio-cli export-midi project.mvp out.mid`): format 1 at the project's resolution. A conductor track carries tempo, time signatures and markers; each track becomes a MIDI track with notes and each note's lyric as a UTF-8 Lyric event. Automation lanes, per-note voice parameters and pronunciation overrides cannot be stored in MIDI and are not exported.
+
+**Lyric sheets** (Phonemes & Lyrics > Lyric entry): paste text or load a `.txt` file. `[Section]` header lines can be skipped, punctuation such as ！？。、… is removed, and the text is split either into **words** (one per note) or into **kana** (one per note; ー and っ count as their own units). Assignment starts at the first selected note, or at the start of the track. The panel shows how many units were found and how many notes the track has. On the command line, `melovio-cli import-midi in.mid out.mvp --lyrics-from-sheet lyrics.txt` assigns a sheet by kana to the imported notes in order.
 
 ### Playback
 Space = play/pause, Stop returns to the cursor, `|<` rewinds, *Preview sel.* (Enter) plays the selected notes. Synthesis happens on a background thread, so the UI never blocks; the transport bar shows a cancellable render progress bar. After edits, the next Play re-renders (unchanged phrases come from a cache).
@@ -145,7 +158,9 @@ The **Phonemes & Lyrics** panel shows, for the selected note, the syllables and 
 - **Lyric entry** tab: assign space-separated words to consecutive notes. **All notes** tab lists every note's phonemes and status.
 
 ### Parameter lanes
-Pick a parameter (only ones the engine supports) and click to add points, drag to move, right-click to delete, Shift-drag to snap to the default value. Lanes are additive offsets on top of note/track values.
+Pick a parameter (only ones the engine supports) and click to add points, drag to move, right-click to delete, Shift-drag to snap to the default value. Lanes are additive offsets on top of note/track values. The lane shares the piano roll's horizontal scroll and zoom.
+
+**Velocity (per note)** is the first entry in the list. Each note has a bar at its start; drag it up or down to set how hard the note is sung (0 to 1; the minimum is 0.02). If the note is part of the selection, every selected note changes by the same amount, so select a phrase first to shape it as a group. The same value is in Note Properties.
 
 Per-track values are in **Tracks > Track style overrides**; per-note values are in **Note Properties** (check a box to override, uncheck to inherit).
 
@@ -154,7 +169,7 @@ The available parameters are those the engine really has:
 - **Lanes**: pitch deviation, volume, brightness, breathiness, tension, formant shift, mouth opening, growl, tremor, fry, air, register.
 - **Note/track values**: softness, power, vibrato depth/rate/delay, portamento, scoop, consonant strength, vowel clarity, legato.
 
-There is deliberately no "dynamics" or "gender" lane, and no "tension" lane beyond the above.
+There is deliberately no "dynamics" or "gender" lane, and no "tension" lane beyond the above (per-note loudness is the velocity lane).
 
 ### Tracks
 Add/remove, name, mute/solo, gain, pan, voicebank, persona, "natural" amount (+ take) and auto-expression. Each track is one monophonic voice; use several tracks for harmony.
@@ -164,6 +179,22 @@ File > Export audio (Ctrl+E): scope (whole project / region / single track), sam
 
 ### Shortcuts
 Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+E, Ctrl+Z/Y, Ctrl+C/X/V/A, Space, Del, Home, V/D tools, Q quantize, L loop, Enter preview selection.
+
+### Command line
+`melovio-cli` (no GUI needed):
+
+| Command | Does |
+|---|---|
+| `voicebanks` | list installed voicebanks |
+| `validate <project.mvp>` | check a project |
+| `render <project.mvp> <out.wav>` | render to WAV |
+| `export-midi <project.mvp> <out.mid>` | write a Standard MIDI File |
+| `import-midi <in.mid> <out.mvp> [--voicebank ID] [--lyrics-from-sheet FILE.txt]` | create a project from MIDI |
+| `install <dir\|.mvb>` / `package <dir> <out.mvb>` | install or package a voicebank |
+| `validate-voicebank <dir> [--deep]` | check a voicebank |
+| `analyze`, `demo` | engine analysis / demo render |
+
+Run `melovio-cli` with no arguments for the exact usage.
 
 ## Voicebanks
 
@@ -232,12 +263,13 @@ UTF-8 JSON with `format` = `"melovio-project"` and `format_version` = `1`. Newer
 
 ```jsonc
 {
-  "format": "melovio-project", "format_version": 1, "app_version": "0.1.0",
+  "format": "melovio-project", "format_version": 1, "app_version": "0.3.0",
   "meta": { "title": "", "composer": "", "lyricist": "", "comment": "", "created": "ISO-8601 UTC", "modified": "ISO-8601 UTC" },
   "settings": { "ppq": 480, "sample_rate": 44100 },
   "tempo_map": [ { "tick": 0, "bpm": 72.0 } ],                       // first entry at tick 0
   "time_signatures": [ { "bar": 0, "numerator": 4, "denominator": 4 } ],  // bar is 0-based
   "loop": { "enabled": false, "start": 0, "end": 0 },                 // ticks
+  "markers": [ { "id": "mk_...", "tick": 7680, "name": "Chorus" } ],   // optional; older files simply have none
   "voicebanks": [ { "id": "yune", "version": "1.0.0", "name": "Yune", "path_hint": "../voices/yune" } ],  // path_hint optional, RELATIVE
   "next_note_id": 16,
   "tracks": [ {
@@ -286,6 +318,7 @@ Progress is reported per phrase; cancelling aborts between phrases.
             | melovio_core (src/core)                                |
             | util  timeline  params  project  project_io  history   |
             | pronunciation  voicebank  voicebank_library  config    |
+            | midi                                                   |
             | synth_plan  renderer  wav_writer  export  transport    |
             +--------------+-----------------------------------------+
                            | (only engine_bridge.cpp, pronunciation.cpp, vb_validate.cpp)
@@ -358,10 +391,11 @@ auto out = export_wav(*pr, r, s, "song.wav", [](double f, const std::string&) {}
 | `util.hpp` | `Status`, `Result<T>`, `Diagnostic{severity, code, message}`, atomic write, `compare_versions` |
 | `timeline.hpp` | `TempoMap` (tick↔seconds, bar/beat, signature changes), `GridDivision`, `snap_to_grid` |
 | `params.hpp` | `ParamDef` registry of the supported parameters (`param_registry()`, `find_param`) |
-| `project.hpp` | `Project`, `Track`, `Note`, `Lane`, `VoicebankRef`, `validate_project` |
+| `project.hpp` | `Project`, `Track`, `Note`, `Lane`, `Marker`, `VoicebankRef`, `validate_project` |
+| `midi.hpp` | `parse_midi`, `import_midi`, `encode_midi`, `write_midi_file` |
 | `project_io.hpp` | `save_project`, `load_project`, `project_to_json/from_json`, `AutosaveStore` |
 | `history.hpp` | `History::record(project, label, coalesce_key)`, `undo`, `redo` |
-| `pronunciation.hpp` | `PronunciationEngine::analyze/analyze_phonemes/analyze_note`, `UserDictionary`, `IReadingProvider`, `validate_phoneme_text` |
+| `pronunciation.hpp` | `PronunciationEngine::analyze/analyze_phonemes/analyze_note`, `UserDictionary`, `IReadingProvider`, `validate_phoneme_text`, `parse_lyric_sheet` |
 | `voicebank.hpp` | `VoicebankManifest`, `load_voicebank`, `validate_voicebank`, `check_completeness` |
 | `voicebank_library.hpp` | `VoicebankLibrary` (refresh/find/install/remove/export_package/resolve/locate), `unzip_package`, `zip_directory` |
 | `synth_plan.hpp` | `split_phrases`, `build_phrase_plan`, `preflight` |
@@ -388,29 +422,20 @@ voicebanks/ bundled voicebank packages
 third_party/wauvio-cpp/  untouched engine snapshot
 ```
 
-### CLI
-`melovio-cli` provides: voicebanks, validate, install, package, validate-voicebank, render, analyze, demo.
-
-### GUI automation (smoke testing)
-`melovio-studio` has flags for checking the UI without a human, e.g. under Xvfb:
-
-```
---frames N  --screenshot out.bmp  --size WxH  --focus "Window title"  --select-note N  --select-all  --show-workshop  --show-log
---script file     one command per line: click X Y | dblclick X Y | rclick X Y | drag X1 Y1 X2 Y2 | move X Y | key [ctrl+|shift+]NAME | text STR | wait N | shot FILE.bmp
-```
-
-Automated runs neither read nor write the user's layout file. `MELOVIO_DEBUG_INPUT=1` prints the mouse state per frame. This is a development aid, not a replacement for unit tests.
+### Tests
+`melovio_tests` (doctest) covers the core: projects, timeline, pronunciation, voicebanks, rendering, export, transport and MIDI. It needs no display or audio hardware. The GUI is checked by hand.
 
 ## Features and status
 
-Status of version 0.1.0.
+Status of version 0.3.0.
 
 ### Implemented
 - **Projects**: new, open, save, save as, recent files, unsaved-change prompts, metadata, relative resource paths, missing-voicebank detection + locate, autosave to a separate folder, crash recovery, atomic writes, strict loading with field-named errors.
 - **Timeline**: tempo changes, time-signature changes, bars/beats, triplet grids, quantize/snap.
-- **Piano roll**: create, delete, move, resize (both edges), multi-select/rubber band, copy/cut/paste, quantize, snap, transposition, nudge, playhead, loop region, zoom/scroll, undo/redo.
+- **Piano roll**: section markers, tempo strip (add/move/edit/delete tempo changes), velocity lane, create, delete, move, resize (both edges), multi-select/rubber band, copy/cut/paste, quantize, snap, transposition, nudge, playhead, loop region, zoom/scroll, undo/redo.
 - **Pronunciation**: lyric input (kana/romaji/phoneme notation), phoneme + syllable visualization, manual override with validation, per-syllable timing, particle helper, bulk lyric assignment, user reading dictionary, unrepresentable-kana flags.
-- **Parameter lanes**: the 12 expression channels the engine really has; add/move/delete points.
+- **Parameter lanes**: the 12 expression channels the engine really has, plus a per-note velocity lane.
+- **MIDI and lyrics**: Standard MIDI import/export (lyrics, tempo, time signatures, markers), lyric-sheet assignment by word or kana.
 - **Voicebanks**: browse, import (dir/.mvb), export .mvb, remove, inspect, validate, versions side by side, compatibility with project range, locate missing, preview.
 - **Voicebank workshop**: copy-to-edit, metadata, voice-model editing via the engine's profile format, vowel chart, test render with waveform, deep completeness check.
 - **Voices**: Yune, Koharu, Reiha and Itsuki as parametric profiles generated from the engine.
@@ -422,8 +447,8 @@ Status of version 0.1.0.
 ### Not implemented
 - Sample-based voicebanks and anything needing recordings (engine limitation; rejected, not faked).
 - Polyphony within one track (the voice is monophonic; use several tracks).
-- MIDI / MusicXML / UST / VSQ import, MIDI export, stems export, formats other than WAV.
-- Velocity/dynamics lane in the piano roll (velocity is edited in Note Properties); no tempo track editor in the roll (tempo changes live in Project settings; the BPM box edits the tempo at the playhead).
+- MusicXML / UST / VSQ import, stems export, audio formats other than WAV. Shift-JIS lyric events in MIDI files are not decoded.
+- Tempo ramps (tempo changes are steps) and time-signature editing on the roll (use Project settings).
 - Native file dialogs, native menus, drag-and-drop of files.
 - Plugin (VST/CLAP) or DAW integration.
 - Languages other than Japanese.
@@ -438,6 +463,7 @@ Status of version 0.1.0.
 - The built-in file dialog is basic (no bookmarks, thumbnails or type-ahead).
 - Audio was only tested through SDL's dummy driver; latency and underrun behaviour on real hardware is untested.
 - The GUI has not been run on a physical display or a HiDPI screen; HiDPI font scaling follows the SDL drawable size and is untested.
+- Importing the same MIDI file twice duplicates its markers.
 - Kana text depends on a system CJK font; without one kana render as boxes (a warning is shown in the transport bar).
 
 ## Known limitations

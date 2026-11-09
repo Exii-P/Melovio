@@ -75,6 +75,13 @@ namespace melovio {
         std::string created, modified;           // ISO-8601 UTC
     };
 
+    // A named position on the timeline (a song section such as "Chorus"). Purely organisational: markers do not affect synthesis.
+    struct Marker {
+        std::string id;
+        Tick tick = 0;
+        std::string name;
+    };
+
     struct Project {
         ProjectMeta meta;
         TempoMap tempo_map;
@@ -82,6 +89,7 @@ namespace melovio {
         int sample_rate = 44100;
         std::vector<VoicebankRef> voicebanks;
         std::vector<Track> tracks;
+        std::vector<Marker> markers;             // kept sorted by tick
         NoteId next_note_id = 1;
 
         Project();
@@ -90,6 +98,12 @@ namespace melovio {
         Track* find_track(const std::string& id);
         const Track* find_track(const std::string& id) const;
         NoteId alloc_note_id() { return next_note_id++; }
+        Marker& add_marker(Tick tick, const std::string& name);       // returns the stored marker (the vector stays sorted)
+        Marker* find_marker(const std::string& id);
+        void remove_marker(const std::string& id);
+        void sort_markers();
+        // End of the section that starts at `m`: the next marker, or the end of the last note (at least m.tick + 1).
+        Tick section_end(const Marker& m) const;
         // Adds a note (id assigned if 0) and restores invariants with the new note winning. Returns its id.
         NoteId add_note(Track& t, Note n);
         VoicebankRef* find_voicebank_ref(const std::string& id);

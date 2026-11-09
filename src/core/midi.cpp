@@ -71,7 +71,6 @@ namespace melovio {
             if (ignored) add_diag(diags, Severity::Info, "midi.lyric_continuation", who + ": " + std::to_string(ignored) + " continuation marker(s) (- or +) ignored.");
             if (orphan) add_diag(diags, Severity::Warning, "midi.lyric_orphan", who + ": " + std::to_string(orphan) + " lyric event(s) did not line up with a note start and were skipped.");
         }
-
     }
 
     Result<MidiFile> parse_midi(const std::string& bytes) {
@@ -116,6 +115,7 @@ namespace melovio {
                     if (type == 0x2F) ended = true;
                     else if (type == 0x03 && t.name.empty()) t.name = trim(data);
                     else if (type == 0x05) t.lyrics.push_back({ tick, data });
+                    else if (type == 0x06) { const std::string nm = trim(data); if (!nm.empty() && valid_utf8(nm)) f.markers.push_back({ tick, nm }); }
                     else if (type == 0x01) t.texts.push_back({ tick, data });
                     else if (type == 0x51 && ml == 3) { const double us = (static_cast<unsigned char>(data[0]) << 16) | (static_cast<unsigned char>(data[1]) << 8) | static_cast<unsigned char>(data[2]); if (us > 0) f.tempi.push_back({ tick, std::round(60000000.0 / us * 1000.0) / 1000.0 }); }
                     else if (type == 0x58 && ml >= 2) { const int dd = static_cast<unsigned char>(data[1]); if (dd <= 5) f.signatures.push_back({ tick, std::max(1, static_cast<int>(static_cast<unsigned char>(data[0]))), 1 << dd }); }
@@ -146,7 +146,7 @@ namespace melovio {
         if (raw.empty()) return R::fail("the MIDI file contains no tracks");
 
         auto sort_by_tick = [](auto& v) { std::stable_sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.tick < b.tick; }); };
-        sort_by_tick(f.tempi); sort_by_tick(f.signatures);
+        sort_by_tick(f.tempi); sort_by_tick(f.signatures); sort_by_tick(f.markers);
 
         size_t idx = 0;
         for (auto& t : raw) {
@@ -200,6 +200,7 @@ namespace melovio {
             project.tempo_map.set_signatures(sc);
         }
 
+        if (opt.import_markers) for (auto& m : file.markers) project.add_marker(conv(m.tick), m.name);
         MidiImportSummary sum;
         for (size_t i : opt.tracks) {
             const MidiTrack& mt = file.tracks[i];
@@ -264,6 +265,7 @@ namespace melovio {
             std::string b = "\xFF\x58\x04"; b.push_back(static_cast<char>(s.numerator)); b.push_back(static_cast<char>(dd)); b.push_back(24); b.push_back(8);
             cond.push_back({ p.tempo_map.bar_start_tick(s.bar), 0, b });
         }
+        for (auto& m : p.markers) { std::string b = "\xFF\x06"; put_vlq(b, static_cast<uint32_t>(m.name.size())); b += m.name; cond.push_back({ m.tick, 3, b }); }
         std::string out = "MThd"; put_u32(out, 6); put_u16(out, 1); put_u16(out, static_cast<int>(tracks.size()) + 1); put_u16(out, ppq);
         out += track_chunk(std::move(cond), p.meta.title.empty() ? "Melovio" : p.meta.title);
         for (const Track* t : tracks) {

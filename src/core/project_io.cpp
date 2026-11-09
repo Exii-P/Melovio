@@ -40,6 +40,8 @@ namespace melovio {
         j["time_signatures"] = json::array();
         for (auto& s : p.tempo_map.signatures()) j["time_signatures"].push_back({ { "bar", s.bar }, { "numerator", s.numerator }, { "denominator", s.denominator } });
         j["loop"] = { { "enabled", p.loop.enabled }, { "start", p.loop.start }, { "end", p.loop.end } };
+        j["markers"] = json::array();
+        for (auto& m : p.markers) j["markers"].push_back({ { "id", m.id }, { "tick", m.tick }, { "name", m.name } });
         j["voicebanks"] = json::array();
         for (auto& v : p.voicebanks) {
             std::string hint = v.path_hint;
@@ -115,6 +117,16 @@ namespace melovio {
             }
             p.tempo_map = TempoMap(ppq, tempi, sigs);
             if (j.contains("loop")) { p.loop.enabled = get_or<bool>(j["loop"], "enabled", false, "loop"); p.loop.start = get_or<Tick>(j["loop"], "start", 0, "loop"); p.loop.end = get_or<Tick>(j["loop"], "end", 0, "loop"); }
+            if (j.contains("markers")) {
+                if (!j["markers"].is_array()) throw ParseError{ "markers: expected array" };
+                for (auto& m : j["markers"]) {
+                    Marker mk; mk.id = get_or<std::string>(m, "id", "", "markers[]"); mk.tick = get_or<Tick>(m, "tick", 0, "markers[]"); mk.name = get_or<std::string>(m, "name", "", "markers[]");
+                    if (mk.id.empty()) mk.id = make_id("mk");
+                    if (mk.tick < 0) mk.tick = 0;
+                    p.markers.push_back(std::move(mk));
+                }
+                p.sort_markers();
+            }
             if (j.contains("voicebanks")) {
                 if (!j["voicebanks"].is_array()) throw ParseError{ "voicebanks: expected array" };
                 for (auto& v : j["voicebanks"]) {

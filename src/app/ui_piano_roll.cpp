@@ -2,10 +2,11 @@
 #include "app.hpp"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace melovio::ui {
     namespace {
-        enum class Drag { None, Move, ResizeR, ResizeL, Rubber, Loop, Scrub, Pan };
+        enum class Drag { None, Move, ResizeR, ResizeL, Rubber, Loop, Scrub, Pan, Marker, Tempo };
 
         struct DragState {
             Drag mode = Drag::None;
@@ -17,10 +18,15 @@ namespace melovio::ui {
             Tick loop_anchor = 0;
             bool additive = false;
             float pan_scroll_pitch = 0; double pan_scroll_tick = 0;
+            std::string marker_id; size_t tempo_idx = 0;     // Marker / Tempo drags
         };
         DragState g;
         ImVec2 g_lyric_pos;
         char g_lyric_buf[256];
+        char g_mk_buf[128];
+        std::string g_mk_id;                 // marker being renamed / right-clicked
+        size_t g_tempo_idx = 0;              // tempo change being edited / right-clicked
+        double g_tempo_bpm = 120.0;
 
         bool is_black(int midi) { switch (((midi % 12) + 12) % 12) { case 1: case 3: case 6: case 8: case 10: return true; default: return false; } }
 
@@ -50,10 +56,24 @@ namespace melovio::ui {
         ImGui::SameLine(); ImGui::SetNextItemWidth(90); ImGui::SliderFloat("##zx", &a.view.px_per_quarter, 20.f, 400.f, "H %.0f");
         ImGui::SameLine(); ImGui::SetNextItemWidth(90); ImGui::SliderFloat("##zy", &a.view.px_per_semitone, 8.f, 36.f, "V %.0f");
         ImGui::SameLine(); ImGui::TextDisabled("Track: %s", t->name.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("+ Marker")) { const Marker& m = a.edit("Add marker").add_marker(a.cursor_tick, "Section " + std::to_string(a.project.markers.size() + 1)); g_mk_id = m.id; std::snprintf(g_mk_buf, sizeof g_mk_buf, "%s", m.name.c_str()); a.touch(); ImGui::OpenPopup("##mk_rename"); }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Add a section marker (Chorus, Breakdown...) at the cursor.\nYou can also double-click the marker strip above the grid.");
+        if (!a.project.markers.empty()) {
+            ImGui::SameLine(); ImGui::SetNextItemWidth(130);
+            if (ImGui::BeginCombo("##gomk", "Go to marker")) {
+                for (auto& m : a.project.markers) {
+                    char lb[160]; std::snprintf(lb, sizeof lb, "%s  (%s)##%s", m.name.c_str(), tick_label(tm, m.tick).c_str(), m.id.c_str());
+                    if (ImGui::Selectable(lb)) { a.cursor_tick = m.tick; a.view.scroll_tick = std::max(0.0, static_cast<double>(m.tick) - 40.0 / a.view.px_per_tick(ppq)); if (a.player && !a.playing()) a.player->transport().seek(a.sec(m.tick)); }
+                }
+                ImGui::EndCombo();
+            }
+        }
 
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         ImVec2 avail = ImGui::GetContentRegionAvail(); avail.y = std::max(avail.y, 80.f);
-        const float ruler_h = 20.f, loop_h = 9.f, top = ruler_h + loop_h;
+        const float ruler_h = 20.f, loop_h = 9.f, marker_h = 14.f, tempo_h = 14.f, top = ruler_h + loop_h + marker_h + tempo_h;
+        const float marker_y = origin.y + ruler_h + loop_h, tempo_y = marker_y + marker_h;
         const float kw = a.view.keys_w;
         const double ppt = a.view.px_per_tick(ppq);
         const float pst = a.view.px_per_semitone;
@@ -61,6 +81,7 @@ namespace melovio::ui {
         auto X = [&](double tick) { return static_cast<float>(gx0 + (tick - a.view.scroll_tick) * ppt); };
         auto TickAt = [&](float x) { return static_cast<Tick>(std::llround(a.view.scroll_tick + (x - gx0) / ppt)); };
         auto Y = [&](int pitch) { return gy0 + (a.view.top_pitch - static_cast<float>(pitch)) * pst; };
+        // Row p spans [Y(p), Y(p)+pst): its top edge is Y(p), so the pitch under y is the *ceiling* of the fractional row (floor picked the row below).
         auto PitchAt = [&](float y) { return static_cast<int>(std::ceil(a.view.top_pitch - (y - gy0) / pst)); };
         const int vis_rows = static_cast<int>((gy1 - gy0) / pst) + 2;
         a.view.top_pitch = std::clamp(a.view.top_pitch, static_cast<float>(vis_rows - 3), 128.f);
@@ -94,13 +115,41 @@ namespace melovio::ui {
             char lb[24]; std::snprintf(lb, sizeof lb, "%d", bar + 1); dl->AddText(ImVec2(bx + 3, origin.y + 2), IM_COL32(200, 205, 220, 255), lb);
             for (int b = 1; b < sig.numerator; ++b) { const float x = X(static_cast<double>(bs + b * beat)); if (x >= gx0) { dl->AddLine(ImVec2(x, origin.y + 14), ImVec2(x, gy1), IM_COL32(255, 255, 255, 30)); } }
         }
-        // tempo / signature markers
-        for (auto& tc : tm.tempi()) { const float x = X(static_cast<double>(tc.tick)); if (x >= gx0 && x <= gx1) { char b[32]; std::snprintf(b, sizeof b, "%.0f bpm", tc.bpm); dl->AddText(ImVec2(x + 3, origin.y + loop_h + 6 - 12 + 12), IM_COL32(240, 190, 90, 255), b); } }
+        // marker strip and tempo strip (below the loop strip)
+        dl->AddRectFilled(ImVec2(gx0, marker_y), ImVec2(gx1, marker_y + marker_h), IM_COL32(38, 36, 46, 255));
+        dl->AddRectFilled(ImVec2(gx0, tempo_y), ImVec2(gx1, tempo_y + tempo_h), IM_COL32(40, 38, 32, 255));
+        dl->AddLine(ImVec2(gx0, marker_y), ImVec2(gx1, marker_y), IM_COL32(0, 0, 0, 90));
+        dl->AddLine(ImVec2(gx0, tempo_y), ImVec2(gx1, tempo_y), IM_COL32(0, 0, 0, 90));
+        dl->AddLine(ImVec2(gx0, gy0 - 1), ImVec2(gx1, gy0 - 1), IM_COL32(0, 0, 0, 120));
+        if (a.project.markers.empty() && g.mode == Drag::None) dl->AddText(ImVec2(gx0 + 6, marker_y + 1), IM_COL32(130, 128, 150, 160), "double-click to add a section marker");
+        for (auto& m : a.project.markers) {
+            const float x = X(static_cast<double>(m.tick)); const float tw = ImGui::CalcTextSize(m.name.c_str()).x;
+            if (x > gx1 || x + tw + 10 < gx0) continue;
+            const bool active = g.mode == Drag::Marker && g.marker_id == m.id;
+            const ImU32 col = active ? IM_COL32(255, 235, 160, 255) : IM_COL32(190, 170, 255, 255);
+            dl->AddLine(ImVec2(x, marker_y), ImVec2(x, gy1), IM_COL32(190, 170, 255, active ? 140 : 60), 1.f);
+            dl->AddRectFilled(ImVec2(x, marker_y + 1), ImVec2(x + tw + 8, marker_y + marker_h - 1), IM_COL32(70, 62, 110, 255));
+            dl->AddTriangleFilled(ImVec2(x, marker_y + 1), ImVec2(x + 6, marker_y + 1), ImVec2(x, marker_y + 7), col);
+            dl->PushClipRect(ImVec2(std::max(x, gx0), marker_y), ImVec2(gx1, marker_y + marker_h), true);
+            dl->AddText(ImVec2(x + 5, marker_y), col, m.name.c_str());
+            dl->PopClipRect();
+        }
+        for (size_t ti = 0; ti < tm.tempi().size(); ++ti) {
+            const auto& tc = tm.tempi()[ti]; const float x = X(static_cast<double>(tc.tick));
+            char b[32]; std::snprintf(b, sizeof b, "%.4g bpm", tc.bpm); const float tw = ImGui::CalcTextSize(b).x;
+            if (x > gx1 || x + tw + 10 < gx0) continue;
+            const bool active = g.mode == Drag::Tempo && g.tempo_idx == ti;
+            dl->AddLine(ImVec2(x, tempo_y), ImVec2(x, gy1), IM_COL32(240, 190, 90, active ? 120 : 35), 1.f);
+            dl->AddRectFilled(ImVec2(x, tempo_y + 1), ImVec2(x + tw + 8, tempo_y + tempo_h - 1), IM_COL32(90, 70, 30, 255));
+            dl->PushClipRect(ImVec2(std::max(x, gx0), tempo_y), ImVec2(gx1, tempo_y + tempo_h), true);
+            dl->AddText(ImVec2(x + 4, tempo_y), active ? IM_COL32(255, 235, 160, 255) : IM_COL32(240, 190, 90, 255), b);
+            dl->PopClipRect();
+        }
         // loop region
         if (a.project.loop.end > a.project.loop.start) {
             const float lx0 = X(static_cast<double>(a.project.loop.start)), lx1 = X(static_cast<double>(a.project.loop.end));
             const ImU32 lc = a.project.loop.enabled ? IM_COL32(90, 200, 120, 110) : IM_COL32(150, 150, 150, 70);
-            dl->AddRectFilled(ImVec2(lx0, origin.y + ruler_h), ImVec2(lx1, gy0), lc);
+            dl->AddRectFilled(ImVec2(lx0, origin.y + ruler_h), ImVec2(lx1, origin.y + ruler_h + loop_h), lc);
             dl->AddRectFilled(ImVec2(lx0, gy0), ImVec2(lx1, gy1), a.project.loop.enabled ? IM_COL32(90, 200, 120, 18) : IM_COL32(150, 150, 150, 10));
         }
 
@@ -153,7 +202,19 @@ namespace melovio::ui {
         const ImVec2 mp = io.MousePos;
         const bool in_grid = mp.x >= gx0 && mp.x <= gx1 && mp.y >= gy0 && mp.y <= gy1;
         const bool in_ruler = mp.x >= gx0 && mp.x <= gx1 && mp.y >= origin.y && mp.y < origin.y + ruler_h;
-        const bool in_loop = mp.x >= gx0 && mp.x <= gx1 && mp.y >= origin.y + ruler_h && mp.y < gy0;
+        const bool in_loop = mp.x >= gx0 && mp.x <= gx1 && mp.y >= origin.y + ruler_h && mp.y < marker_y;
+        const bool in_marker = mp.x >= gx0 && mp.x <= gx1 && mp.y >= marker_y && mp.y < tempo_y;
+        const bool in_tempo = mp.x >= gx0 && mp.x <= gx1 && mp.y >= tempo_y && mp.y < gy0;
+        // marker / tempo flags sit to the right of their tick; return the index under the mouse (or -1)
+        auto hit_marker = [&](ImVec2 p) -> const Marker* {
+            for (auto it = a.project.markers.rbegin(); it != a.project.markers.rend(); ++it) { const float x = X(static_cast<double>(it->tick)); if (p.x >= x - 3 && p.x <= x + ImGui::CalcTextSize(it->name.c_str()).x + 8) return &*it; }
+            return nullptr;
+        };
+        auto hit_tempo = [&](ImVec2 p) -> int {
+            const auto& tv = tm.tempi();
+            for (int i = static_cast<int>(tv.size()) - 1; i >= 0; --i) { char b[32]; std::snprintf(b, sizeof b, "%.4g bpm", tv[static_cast<size_t>(i)].bpm); const float x = X(static_cast<double>(tv[static_cast<size_t>(i)].tick)); if (p.x >= x - 3 && p.x <= x + ImGui::CalcTextSize(b).x + 8) return i; }
+            return -1;
+        };
         const bool alt = io.KeyAlt;
         auto snapped = [&](Tick x) { return alt ? x : a.snap(x); };
         auto hit_note = [&](ImVec2 p, int* edge) -> Note* {
@@ -184,6 +245,23 @@ namespace melovio::ui {
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) { g = DragState(); g.mode = Drag::Pan; g.start = mp; g.pan_scroll_tick = a.view.scroll_tick; g.pan_scroll_pitch = a.view.top_pitch; }
             else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 if (in_ruler) { g = DragState(); g.mode = Drag::Scrub; a.cursor_tick = std::max<Tick>(0, snapped(TickAt(mp.x))); if (a.player && !a.playing()) a.player->transport().seek(a.sec(a.cursor_tick)); }
+                else if (in_marker) {
+                    const Marker* m = hit_marker(mp); const bool dbl = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || io.MouseClickedCount[0] == 2;
+                    if (m && dbl) { g_mk_id = m->id; std::snprintf(g_mk_buf, sizeof g_mk_buf, "%s", m->name.c_str()); ImGui::OpenPopup("##mk_rename"); }
+                    else if (m) { g = DragState(); g.mode = Drag::Marker; g.start = mp; g.marker_id = m->id; a.cursor_tick = m->tick; if (a.player && !a.playing()) a.player->transport().seek(a.sec(a.cursor_tick)); }
+                    else if (dbl) { const Marker& nm = a.edit("Add marker").add_marker(std::max<Tick>(0, snapped(TickAt(mp.x))), "Section " + std::to_string(a.project.markers.size() + 1)); g_mk_id = nm.id; std::snprintf(g_mk_buf, sizeof g_mk_buf, "%s", nm.name.c_str()); a.touch(); ImGui::OpenPopup("##mk_rename"); }
+                }
+                else if (in_tempo) {
+                    const int ti = hit_tempo(mp); const bool dbl = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || io.MouseClickedCount[0] == 2;
+                    if (ti >= 0 && dbl) { g_tempo_idx = static_cast<size_t>(ti); g_tempo_bpm = tm.tempi()[g_tempo_idx].bpm; ImGui::OpenPopup("##tempo_edit"); }
+                    else if (ti > 0) { g = DragState(); g.mode = Drag::Tempo; g.start = mp; g.tempo_idx = static_cast<size_t>(ti); }     // the tempo at tick 0 cannot be moved
+                    else if (ti < 0 && dbl) {
+                        const Tick at = std::max<Tick>(1, snapped(TickAt(mp.x))); auto tv = tm.tempi(); const double bpm = tm.bpm_at(at);
+                        a.edit("Add tempo change"); tv.push_back({ at, bpm }); a.project.tempo_map.set_tempi(tv); a.sync_loop(); a.touch();
+                        for (size_t k = 0; k < a.project.tempo_map.tempi().size(); ++k) if (a.project.tempo_map.tempi()[k].tick == at) g_tempo_idx = k;
+                        g_tempo_bpm = bpm; ImGui::OpenPopup("##tempo_edit");
+                    }
+                }
                 else if (in_loop) { g = DragState(); g.mode = Drag::Loop; g.loop_anchor = std::max<Tick>(0, snapped(TickAt(mp.x))); }
                 else if (in_grid) {
                     int edge = 0; Note* n = hit_note(mp, &edge);
@@ -207,6 +285,10 @@ namespace melovio::ui {
                         g = DragState(); g.mode = Drag::Rubber; g.start = mp; g.cur = mp; g.additive = io.KeyCtrl || io.KeyShift; g.ids = a.selection;
                     }
                 }
+            } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && in_marker) {
+                if (const Marker* m = hit_marker(mp)) { g_mk_id = m->id; ImGui::OpenPopup("##mk_ctx"); }
+            } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && in_tempo) {
+                const int ti = hit_tempo(mp); if (ti >= 0) { g_tempo_idx = static_cast<size_t>(ti); g_tempo_bpm = tm.tempi()[g_tempo_idx].bpm; ImGui::OpenPopup("##tempo_ctx"); }
             } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && in_grid) {
                 int edge = 0; Note* n = hit_note(mp, &edge);
                 if (n && !a.selection.count(n->id)) a.select_only(n->id);
@@ -227,6 +309,19 @@ namespace melovio::ui {
             } else {
                 switch (g.mode) {
                     case Drag::Pan: a.view.scroll_tick = std::max(0.0, g.pan_scroll_tick - (mp.x - g.start.x) / ppt); a.view.top_pitch = g.pan_scroll_pitch + (mp.y - g.start.y) / pst; break;
+                    case Drag::Marker: {
+                        if (!g.recorded && std::fabs(mp.x - g.start.x) < 3.f) break;
+                        if (!g.recorded) { a.edit("Move marker", "marker-drag"); g.recorded = true; }
+                        if (Marker* m = a.project.find_marker(g.marker_id)) { m->tick = std::max<Tick>(0, snapped(TickAt(mp.x))); a.cursor_tick = m->tick; a.project.sort_markers(); a.touch(); }
+                        break; }
+                    case Drag::Tempo: {
+                        if (!g.recorded && std::fabs(mp.x - g.start.x) < 3.f) break;
+                        auto tv = tm.tempi(); if (g.tempo_idx == 0 || g.tempo_idx >= tv.size()) break;
+                        if (!g.recorded) { a.edit("Move tempo change", "tempo-drag"); g.recorded = true; }
+                        Tick lo = tv[g.tempo_idx - 1].tick + 1, hi = g.tempo_idx + 1 < tv.size() ? tv[g.tempo_idx + 1].tick - 1 : std::numeric_limits<Tick>::max();
+                        tv[g.tempo_idx].tick = std::clamp(snapped(TickAt(mp.x)), lo, std::max(lo, hi));
+                        a.project.tempo_map.set_tempi(tv); a.sync_loop(); a.touch();
+                        break; }
                     case Drag::Scrub: a.cursor_tick = std::max<Tick>(0, snapped(TickAt(mp.x))); if (a.player && !a.playing()) a.player->transport().seek(a.sec(a.cursor_tick)); break;
                     case Drag::Loop: {
                         Tick c = std::max<Tick>(0, snapped(TickAt(mp.x)));
@@ -295,6 +390,53 @@ namespace melovio::ui {
             } else a.edit_lyric_open = false;
         }
 
+        if (ImGui::BeginPopup("##mk_rename")) {
+            ImGui::TextDisabled("Marker name");
+            if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+            ImGui::SetNextItemWidth(240);
+            if (ImGui::InputText("##mkname", g_mk_buf, sizeof g_mk_buf, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
+                if (g_mk_buf[0]) { a.edit("Rename marker"); if (Marker* m = a.project.find_marker(g_mk_id)) m->name = g_mk_buf; a.touch(); }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+        if (ImGui::BeginPopup("##mk_ctx")) {
+            Marker* m = a.project.find_marker(g_mk_id);
+            if (!m) ImGui::CloseCurrentPopup();
+            else {
+                ImGui::TextDisabled("%s", m->name.c_str());
+                if (ImGui::MenuItem("Rename...")) { std::snprintf(g_mk_buf, sizeof g_mk_buf, "%s", m->name.c_str()); ImGui::CloseCurrentPopup(); ImGui::OpenPopup("##mk_rename"); }
+                if (ImGui::MenuItem("Jump here")) { a.cursor_tick = m->tick; if (a.player && !a.playing()) a.player->transport().seek(a.sec(m->tick)); }
+                if (ImGui::MenuItem("Loop this section")) { const Tick e0 = a.project.section_end(*m), s0 = m->tick; a.edit("Set loop"); a.project.loop = { true, s0, e0 }; a.sync_loop(); }
+                if (ImGui::MenuItem("Select notes in section")) {
+                    const Tick e0 = a.project.section_end(*m), s0 = m->tick; a.selection.clear();
+                    for (auto& n : t->notes) if (n.tick >= s0 && n.tick < e0) a.selection.insert(n.id);
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Delete marker")) { const std::string id = g_mk_id; a.edit("Delete marker"); a.project.remove_marker(id); a.touch(); ImGui::CloseCurrentPopup(); }
+            }
+            ImGui::EndPopup();
+        }
+        if (ImGui::BeginPopup("##tempo_edit")) {
+            ImGui::TextDisabled("Tempo (BPM)");
+            if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+            ImGui::SetNextItemWidth(140);
+            if (ImGui::InputDouble("##bpm", &g_tempo_bpm, 0.0, 0.0, "%.3f", ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
+                auto tv = tm.tempi();
+                if (g_tempo_idx < tv.size()) { a.edit("Edit tempo"); tv[g_tempo_idx].bpm = std::clamp(g_tempo_bpm, 10.0, 400.0); a.project.tempo_map.set_tempi(tv); a.sync_loop(); a.touch(); }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+        if (ImGui::BeginPopup("##tempo_ctx")) {
+            if (ImGui::MenuItem("Edit BPM...")) { ImGui::CloseCurrentPopup(); ImGui::OpenPopup("##tempo_edit"); }
+            if (ImGui::MenuItem("Delete tempo change", nullptr, false, g_tempo_idx > 0 && g_tempo_idx < tm.tempi().size())) {
+                auto tv = tm.tempi(); tv.erase(tv.begin() + static_cast<std::ptrdiff_t>(g_tempo_idx));
+                a.edit("Delete tempo change"); a.project.tempo_map.set_tempi(tv); a.sync_loop(); a.touch(); ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         if (ImGui::BeginPopup("roll_ctx")) {
             const bool has_sel = !a.selection.empty();
             if (ImGui::MenuItem("Edit lyric...", "double-click", false, a.selection.size() == 1)) {
@@ -333,6 +475,7 @@ namespace melovio::ui {
         }
 
         // cursor hints
+        if (hovered && (in_marker || in_tempo) && g.mode == Drag::None) { if (in_marker ? hit_marker(mp) != nullptr : hit_tempo(mp) > 0) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW); }
         if (hovered && in_grid && g.mode == Drag::None) { int e = 0; if (hit_note(mp, &e) && e != 0) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW); }
         if (hovered && in_grid && ImGui::IsItemHovered() && g.mode == Drag::None) {
             const int p = PitchAt(mp.y); ImGui::SetTooltip("%s  |  %s", pitch_name(std::clamp(p, 0, 127)), tick_label(tm, std::max<Tick>(0, TickAt(mp.x))).c_str());

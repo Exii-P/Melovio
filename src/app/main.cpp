@@ -23,9 +23,10 @@ namespace {
         int width = 1500, height = 900;
         bool show_workshop = false, show_log = false, select_all = false, show_voicebanks_only = false;
         int select_note = -1;
+        std::string lane;                   // parameter-lane id to show (dev aid, e.g. __velocity)
         std::string focus;                  // window name to focus before the screenshot
         std::string midi;                   // open the MIDI import dialog for this file at start-up (testing aid)
-        std::string script;                 // UI automation script (see docs/DEVELOPMENT.md): click/drag/key/wait/shot
+    std::string script;                 // UI automation script (see docs/DEVELOPMENT.md): click/drag/key/wait/shot
         bool help = false;
     };
     Args parse_args(int argc, char** argv) {
@@ -43,6 +44,7 @@ namespace {
             else if (s == "--select-all") a.select_all = true;
             else if (s == "--select-note") a.select_note = std::atoi(next().c_str());
             else if (s == "--focus") a.focus = next();
+            else if (s == "--lane") a.lane = next();
             else if (s == "--script") a.script = next();
             else if (s == "--import-midi") a.midi = next();
             else if (s[0] != '-') a.open = s;
@@ -109,7 +111,7 @@ int main(int argc, char** argv) {
     Args args = parse_args(argc, argv);
     if (args.help) {
         std::printf("Melovio Studio %s\nusage: melovio-studio [project.mvp] [--open FILE] [--size WxH]\n"
-                    "  test/automation: --frames N  --screenshot out.bmp  --show-workshop  --show-log  --select-all  --select-note N  --focus \"Window Name\"\n", MELOVIO_VERSION);
+                    "  test/automation: --lane ID  --frames N  --screenshot out.bmp  --show-workshop  --show-log  --select-all  --select-note N  --focus \"Window Name\"\n", MELOVIO_VERSION);
         return 0;
     }
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) { std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError()); return 1; }
@@ -126,6 +128,7 @@ int main(int argc, char** argv) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
+    if (!args.script.empty()) io.MouseDoubleClickTime = 5.0f;     // scripted clicks run at software-render frame rates; keep double-clicks recognisable
     std::error_code ec; fs::create_directories(default_config_dir(), ec);
     static std::string ini = path_to_utf8(default_config_dir() / "melovio_layout.ini");
     io.IniFilename = args.frames > 0 ? nullptr : ini.c_str();       // automated runs neither read nor write the user's layout
@@ -153,6 +156,7 @@ int main(int argc, char** argv) {
     app.show_workshop = args.show_workshop; app.show_log = args.show_log;
     if (!args.midi.empty()) load_midi_for_import(app, path_from_utf8(args.midi));
     if (args.select_all) app.select_all();
+    if (!args.lane.empty()) app.lane_param = args.lane;
     if (args.select_note >= 0) if (Track* t = app.cur_track(); t && static_cast<size_t>(args.select_note) < t->notes.size()) app.select_only(t->notes[static_cast<size_t>(args.select_note)].id);
 
     std::vector<Step> script; size_t script_pos = 0; int script_wait = 0;
