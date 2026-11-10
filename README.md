@@ -32,7 +32,7 @@ Current version: **0.3.0**.
 | CLI | `melovio-cli` | validate / render / package / analyze without a GUI |
 | Tests | `melovio_tests` | doctest suite |
 
-Bundled voicebanks (in `voicebanks/`): Yune (1.5.2 and 1.0.0), Koharu, Reiha, Itsuki and Kyo. The Voicebanks panel (or `melovio-cli voicebanks`) shows what is installed.
+Bundled voicebanks (in `voicebanks/`): Yune (1.5.2 and 1.0.0), Koharu, Reiha, Itsuki and Kyouka. The Voicebanks panel (or `melovio-cli voicebanks`) shows what is installed.
 
 ## Quick start
 
