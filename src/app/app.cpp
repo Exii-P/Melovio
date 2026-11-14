@@ -144,6 +144,33 @@ namespace melovio::ui {
         selection = alive;
     }
 
+    void App::duplicate_selection() {
+        auto sel = selected_notes(); if (sel.empty()) return;
+        Tick lo = sel.front()->tick, hi = sel.front()->end();
+        for (auto* n : sel) { lo = std::min(lo, n->tick); hi = std::max(hi, n->end()); }
+        std::vector<Note> copies; for (auto* n : sel) copies.push_back(*n);
+        const Tick shift = hi - lo;
+        Project& p = edit("Duplicate");
+        Track& tr = *cur_track();
+        std::set<NoteId> fresh;
+        for (Note n : copies) { n.id = 0; n.tick += shift; fresh.insert(p.add_note(tr, n)); }
+        tr.resolve_overlaps(fresh);
+        std::set<NoteId> alive; for (auto& n : tr.notes) if (fresh.count(n.id)) alive.insert(n.id);
+        selection = alive;
+    }
+
+    void App::extend_selection() {
+        if (selection.empty()) return;
+        edit("Extend notes"); Track* t = cur_track();
+        const Tick g = std::max<Tick>(1, grid_ticks(grid, project.tempo_map.ppq()));
+        for (auto* n : selected_notes()) {
+            Tick next = -1;
+            for (auto& o : t->notes) if (o.id != n->id && o.tick > n->tick && (next < 0 || o.tick < next)) next = o.tick;
+            const Tick target = next >= 0 ? next : (n->end() / g + 1) * g;
+            if (target > n->end()) n->length = target - n->tick;
+        }
+    }
+
     void App::delete_selection() {
         Track* t = cur_track(); if (!t || selection.empty()) return;
         edit("Delete notes");

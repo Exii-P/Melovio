@@ -1,4 +1,4 @@
-// Melovio project file (.mvp): JSON, versioned. See docs/PROJECT_FORMAT.md.
+// Melovio project file (.mvp): JSON, versioned. See README.md.
 #pragma once
 #include "project.hpp"
 

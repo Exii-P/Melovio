@@ -53,6 +53,8 @@ namespace melovio::ui {
         ImGui::SameLine(); ImGui::Checkbox("Snap", &a.snap_enabled);
         if (ImGui::IsItemHovered()) ImGui::SetTooltip("Hold Alt while dragging to bypass snapping temporarily.");
         ImGui::SameLine(); ImGui::Checkbox("Follow", &a.follow_playhead);
+        ImGui::SameLine(); ImGui::Checkbox("Ghost", &a.show_ghost);
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Show the other tracks' notes faintly, to line up harmonies.\nGhost notes cannot be edited here; select their track to edit them.");
         ImGui::SameLine(); ImGui::SetNextItemWidth(90); ImGui::SliderFloat("##zx", &a.view.px_per_quarter, 20.f, 400.f, "H %.0f");
         ImGui::SameLine(); ImGui::SetNextItemWidth(90); ImGui::SliderFloat("##zy", &a.view.px_per_semitone, 8.f, 36.f, "V %.0f");
         ImGui::SameLine(); ImGui::TextDisabled("Track: %s", t->name.c_str());
@@ -153,6 +155,17 @@ namespace melovio::ui {
             dl->AddRectFilled(ImVec2(lx0, gy0), ImVec2(lx1, gy1), a.project.loop.enabled ? IM_COL32(90, 200, 120, 18) : IM_COL32(150, 150, 150, 10));
         }
 
+        if (a.show_ghost) for (size_t ti = 0; ti < a.project.tracks.size(); ++ti) {
+            if (static_cast<int>(ti) == a.track_index) continue;
+            const int ci = static_cast<int>(ti);
+            for (const Note& n : a.project.tracks[ti].notes) {
+                const float x0 = X(static_cast<double>(n.tick)), x1 = std::max(x0 + 3, X(static_cast<double>(n.end()))), y0 = Y(n.pitch);
+                if (x1 < gx0 || x0 > gx1 || y0 > gy1 || y0 + pst < gy0) continue;
+                dl->AddRectFilled(ImVec2(x0, y0 + 1), ImVec2(x1 - 1, y0 + pst - 1), track_color(ci, 0.16f), 3.f);
+                dl->AddRect(ImVec2(x0, y0 + 1), ImVec2(x1 - 1, y0 + pst - 1), track_color(ci, 0.45f), 3.f);
+            }
+        }
+
         for (const Note& n : t->notes) {
             const float x0 = X(static_cast<double>(n.tick)), x1 = std::max(x0 + 3, X(static_cast<double>(n.end()))), y0 = Y(n.pitch);
             if (x1 < gx0 || x0 > gx1 || y0 > gy1 || y0 + pst < gy0) continue;
@@ -217,6 +230,8 @@ namespace melovio::ui {
         };
         const bool alt = io.KeyAlt;
         auto snapped = [&](Tick x) { return alt ? x : a.snap(x); };
+        // New notes start at the grid cell *containing* the pointer (round-down), not the nearest grid line; rounding to nearest put a note one cell to the right whenever the pointer was in the right half of a cell.
+        auto cell_tick = [&](float x) { return std::max<Tick>(0, snapped(snap_down(TickAt(x), alt ? 1 : std::max<Tick>(1, a.snap_enabled ? g_ticks : 1)))); };
         auto hit_note = [&](ImVec2 p, int* edge) -> Note* {
             for (auto it = t->notes.rbegin(); it != t->notes.rend(); ++it) {
                 const float x0 = X(static_cast<double>(it->tick)), x1 = std::max(x0 + 3, X(static_cast<double>(it->end()))), y0 = Y(it->pitch);
@@ -268,7 +283,7 @@ namespace melovio::ui {
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) || (io.MouseClickedCount[0] == 2)) {
                         if (n) { a.select_only(n->id); a.edit_lyric_note = n->id; a.edit_lyric_open = true; g_lyric_pos = ImVec2(X(static_cast<double>(n->tick)), Y(n->pitch) + pst);
                             std::snprintf(g_lyric_buf, sizeof g_lyric_buf, "%s", n->lyric.c_str()); ImGui::OpenPopup("##lyric_edit"); }
-                        else { Note nn; nn.tick = std::max<Tick>(0, snapped(TickAt(mp.x))); nn.length = g_ticks; nn.pitch = std::clamp(PitchAt(mp.y), 0, 127); nn.lyric = a.default_lyric;
+                        else { Note nn; nn.tick = cell_tick(mp.x); nn.length = g_ticks; nn.pitch = std::clamp(PitchAt(mp.y), 0, 127); nn.lyric = a.default_lyric;
                             NoteId id = a.edit("Add note").add_note(*a.cur_track(), nn); a.select_only(id); }
                     } else if (n) {
                         if (io.KeyCtrl || io.KeyShift) { if (a.selection.count(n->id)) a.selection.erase(n->id); else a.selection.insert(n->id); }
@@ -276,7 +291,7 @@ namespace melovio::ui {
                         g = DragState(); g.mode = edge > 0 ? Drag::ResizeR : edge < 0 ? Drag::ResizeL : Drag::Move; g.start = mp; g.grab = n->id; g.ids = a.selection; g.snapshot = *t;
                         if (!a.selection.count(n->id)) g.mode = Drag::None;
                     } else if (a.tool == Tool::Draw) {
-                        Note nn; nn.tick = std::max<Tick>(0, snapped(snap_down(TickAt(mp.x), alt ? 1 : std::max<Tick>(1, a.snap_enabled ? g_ticks : 1)))); nn.length = g_ticks;
+                        Note nn; nn.tick = cell_tick(mp.x); nn.length = g_ticks;
                         nn.pitch = std::clamp(PitchAt(mp.y), 0, 127); nn.lyric = a.default_lyric;
                         NoteId id = a.edit("Add note").add_note(*a.cur_track(), nn); a.select_only(id);
                         t = a.cur_track(); g = DragState(); g.mode = Drag::ResizeR; g.start = mp; g.grab = id; g.ids = { id }; g.snapshot = *t; g.recorded = true;
@@ -460,14 +475,16 @@ namespace melovio::ui {
                 if (ImGui::MenuItem("-1 octave")) a.transpose_selection(-12);
                 ImGui::EndMenu();
             }
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, has_sel)) a.duplicate_selection();
             if (ImGui::MenuItem("Quantize to grid", "Q", false, has_sel)) a.quantize_selection();
+            if (ImGui::MenuItem("Extend to next note", "E", false, has_sel)) a.extend_selection();
             if (ImGui::MenuItem("Set loop to selection", nullptr, false, has_sel)) {
                 auto sel = a.selected_notes(); Tick s0 = sel.front()->tick, e0 = sel.front()->end(); for (auto* n : sel) { s0 = std::min(s0, n->tick); e0 = std::max(e0, n->end()); }
                 a.edit("Set loop"); a.project.loop = { true, s0, e0 }; a.sync_loop();
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Add note here", nullptr, false, true)) {
-                Note nn; nn.tick = std::max<Tick>(0, snapped(TickAt(g_lyric_pos.x))); nn.length = g_ticks; nn.pitch = std::clamp(PitchAt(g_lyric_pos.y), 0, 127); nn.lyric = a.default_lyric;
+                Note nn; nn.tick = cell_tick(g_lyric_pos.x); nn.length = g_ticks; nn.pitch = std::clamp(PitchAt(g_lyric_pos.y), 0, 127); nn.lyric = a.default_lyric;
                 NoteId id = a.edit("Add note").add_note(*a.cur_track(), nn); a.select_only(id);
             }
             if (ImGui::MenuItem("Select all", "Ctrl+A")) a.select_all();

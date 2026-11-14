@@ -63,6 +63,7 @@ namespace melovio::ui {
         if (chord(ImGuiMod_Ctrl | ImGuiKey_C)) a.copy_selection(false);
         if (chord(ImGuiMod_Ctrl | ImGuiKey_X)) a.copy_selection(true);
         if (chord(ImGuiMod_Ctrl | ImGuiKey_V)) a.paste_at(a.cursor_tick);
+        if (chord(ImGuiMod_Ctrl | ImGuiKey_D)) a.duplicate_selection();
         if (chord(ImGuiMod_Ctrl | ImGuiKey_A)) a.select_all();
         if (ImGui::IsKeyPressed(ImGuiKey_Space, false)) a.toggle_play();
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) a.delete_selection();
@@ -76,6 +77,7 @@ namespace melovio::ui {
             if (ImGui::IsKeyPressed(ImGuiKey_V, false)) a.tool = Tool::Select;
             if (ImGui::IsKeyPressed(ImGuiKey_D, false)) a.tool = Tool::Draw;
             if (ImGui::IsKeyPressed(ImGuiKey_Q, false)) a.quantize_selection();
+            if (ImGui::IsKeyPressed(ImGuiKey_E, false)) a.extend_selection();
             if (ImGui::IsKeyPressed(ImGuiKey_L, false)) { a.edit("Toggle loop"); a.project.loop.enabled = !a.project.loop.enabled; a.sync_loop(); }
             if (ImGui::IsKeyPressed(ImGuiKey_Enter, false)) a.preview_selection();
         }
@@ -113,6 +115,7 @@ namespace melovio::ui {
             if (ImGui::MenuItem("Cut", "Ctrl+X", false, has)) a.copy_selection(true);
             if (ImGui::MenuItem("Copy", "Ctrl+C", false, has)) a.copy_selection(false);
             if (ImGui::MenuItem("Paste", "Ctrl+V", false, !a.clipboard.empty())) a.paste_at(a.cursor_tick);
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, has)) a.duplicate_selection();
             if (ImGui::MenuItem("Delete", "Del", false, has)) a.delete_selection();
             if (ImGui::MenuItem("Select all", "Ctrl+A")) a.select_all();
             ImGui::Separator();
@@ -121,10 +124,11 @@ namespace melovio::ui {
             if (ImGui::MenuItem("Transpose +12", "Shift+Up", false, has)) a.transpose_selection(12);
             if (ImGui::MenuItem("Transpose -12", "Shift+Down", false, has)) a.transpose_selection(-12);
             if (ImGui::MenuItem("Quantize to grid", "Q", false, has)) a.quantize_selection();
+            if (ImGui::MenuItem("Extend to next note", "E", false, has)) a.extend_selection();
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Piano roll", nullptr, &a.show_roll); ImGui::MenuItem("Parameter lanes", nullptr, &a.show_params); ImGui::MenuItem("Tracks", nullptr, &a.show_tracks);
+            ImGui::MenuItem("Ghost notes of other tracks", nullptr, &a.show_ghost); ImGui::MenuItem("Piano roll", nullptr, &a.show_roll); ImGui::MenuItem("Parameter lanes", nullptr, &a.show_params); ImGui::MenuItem("Tracks", nullptr, &a.show_tracks);
             ImGui::MenuItem("Note properties", nullptr, &a.show_props); ImGui::MenuItem("Phonemes & lyrics", nullptr, &a.show_phonemes);
             ImGui::MenuItem("Voicebanks", nullptr, &a.show_voicebanks); ImGui::MenuItem("Voicebank workshop", nullptr, &a.show_workshop);
             ImGui::MenuItem("Log & diagnostics", nullptr, &a.show_log);

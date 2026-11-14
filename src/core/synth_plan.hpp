@@ -1,5 +1,5 @@
 // Turns project data (notes in ticks, lyrics, parameters, lanes) into engine-ready plans (seconds, engine lyrics, Style overrides).
-// This is steps 1-5 of the synthesis pipeline in docs/SYNTHESIS_PIPELINE.md; engine_bridge::render_plan is step 6-7.
+// This is steps 1-5 of the synthesis pipeline in README.md ("Synthesis pipeline"); engine_bridge::render_plan is step 6-7.
 #pragma once
 #include "engine_bridge.hpp"
 #include "project.hpp"

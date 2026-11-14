@@ -1,4 +1,4 @@
-// Melovio voicebank package: a directory (or .mvb zip) containing voicebank.json + the synthesis profile. See docs/VOICEBANK_FORMAT.md.
+// Melovio voicebank package: a directory (or .mvb zip) containing voicebank.json + the synthesis profile. See README.md.
 #pragma once
 #include "engine_bridge.hpp"
 #include "util.hpp"

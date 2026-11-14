@@ -1,8 +1,8 @@
 # Melovio
 
-Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with section markers, a tempo strip and a velocity lane, a pronunciation (phoneme) editor, MIDI and lyric-sheet import/export, a voicebank manager, a voicebank workshop, and WAV export.
+Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with ghost notes of other tracks, duplicate/extend editing, section markers, a tempo strip and a velocity lane, a pronunciation (phoneme) editor, MIDI and lyric-sheet import/export, a voicebank manager, a voicebank workshop, and WAV export.
 
-Current version: **0.3.0**.
+Current version: **0.4.0**.
 
 **Melovio Studio** is the application; **Wauvio-Vocal** is the synthesis backend it uses. They are separate things: the backend is vendored unmodified in `third_party/wauvio-cpp/` and is only touched through one bridge file (`src/core/engine_bridge.cpp`).
 
@@ -119,6 +119,9 @@ If a project needs a voicebank that is not installed you get a dialog with **Loc
 ### Piano roll
 - **Select tool (V)**: click a note, drag to move (time and pitch), drag its left/right edge to resize, drag empty space for a rubber band, Ctrl/Shift to add to the selection.
 - **Draw tool (D)**: click to create a note with the grid length and default lyric, drag to set its length.
+- Double-click empty space to add a note at the grid cell under the pointer (the same cell the Draw tool uses).
+- **Ctrl+D** duplicates the selection directly after itself; **E** (or right-click > *Extend to next note*) stretches each selected note to the start of the next note, or to the next grid line if it is the last one.
+- **Ghost** (toolbar, or View > Ghost notes of other tracks) shows the other tracks' notes faintly behind the current track so you can line up harmonies. Ghost notes cannot be clicked; select their track to edit them.
 - Double-click a note to type its lyric; separate words with spaces to spread syllables over following notes.
 - Right-click for the context menu (cut/copy/paste/delete/transpose/quantize...). Ctrl+C/X/V copy/cut/paste at the cursor, Del deletes, Q quantizes to the grid, arrows nudge (Up/Down transpose, Shift = octave).
 - **Grid**: 1/4, 1/8, 1/16, 1/32 and triplets. **Snap** toggles snapping (hold Alt to bypass).
@@ -178,7 +181,7 @@ Add/remove, name, mute/solo, gain, pan, voicebank, persona, "natural" amount (+ 
 File > Export audio (Ctrl+E): scope (whole project / region / single track), sample rate 22.05–96 kHz, 16/24-bit PCM or 32-bit float, mono/stereo, optional normalize, dither and tail. There is a progress bar and Cancel. An existing file asks before being replaced, and a cancelled export leaves nothing behind.
 
 ### Shortcuts
-Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+E, Ctrl+Z/Y, Ctrl+C/X/V/A, Space, Del, Home, V/D tools, Q quantize, L loop, Enter preview selection.
+Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+E, Ctrl+Z/Y, Ctrl+C/X/V/A, Ctrl+D duplicate, Space, Del, Home, V/D tools, Q quantize, E extend to next note, L loop, Enter preview selection.
 
 ### Command line
 `melovio-cli` (no GUI needed):
@@ -427,12 +430,12 @@ third_party/wauvio-cpp/  untouched engine snapshot
 
 ## Features and status
 
-Status of version 0.3.0.
+Status of version 0.4.0.
 
 ### Implemented
 - **Projects**: new, open, save, save as, recent files, unsaved-change prompts, metadata, relative resource paths, missing-voicebank detection + locate, autosave to a separate folder, crash recovery, atomic writes, strict loading with field-named errors.
 - **Timeline**: tempo changes, time-signature changes, bars/beats, triplet grids, quantize/snap.
-- **Piano roll**: section markers, tempo strip (add/move/edit/delete tempo changes), velocity lane, create, delete, move, resize (both edges), multi-select/rubber band, copy/cut/paste, quantize, snap, transposition, nudge, playhead, loop region, zoom/scroll, undo/redo.
+- **Piano roll**: duplicate, extend to next note, ghost notes of other tracks, section markers, tempo strip (add/move/edit/delete tempo changes), velocity lane, create, delete, move, resize (both edges), multi-select/rubber band, copy/cut/paste, quantize, snap, transposition, nudge, playhead, loop region, zoom/scroll, undo/redo.
 - **Pronunciation**: lyric input (kana/romaji/phoneme notation), phoneme + syllable visualization, manual override with validation, per-syllable timing, particle helper, bulk lyric assignment, user reading dictionary, unrepresentable-kana flags.
 - **Parameter lanes**: the 12 expression channels the engine really has, plus a per-note velocity lane.
 - **MIDI and lyrics**: Standard MIDI import/export (lyrics, tempo, time signatures, markers), lyric-sheet assignment by word or kana.

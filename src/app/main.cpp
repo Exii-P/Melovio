@@ -26,7 +26,7 @@ namespace {
         std::string lane;                   // parameter-lane id to show (dev aid, e.g. __velocity)
         std::string focus;                  // window name to focus before the screenshot
         std::string midi;                   // open the MIDI import dialog for this file at start-up (testing aid)
-    std::string script;                 // UI automation script (see docs/DEVELOPMENT.md): click/drag/key/wait/shot
+    std::string script;                 // UI automation script: click/drag/key/wait/shot
         bool help = false;
     };
     Args parse_args(int argc, char** argv) {
@@ -46,7 +46,7 @@ namespace {
             else if (s == "--focus") a.focus = next();
             else if (s == "--lane") a.lane = next();
             else if (s == "--script") a.script = next();
-            else if (s == "--import-midi") a.midi = next();
+        else if (s == "--import-midi") a.midi = next();
             else if (s[0] != '-') a.open = s;
         }
         return a;

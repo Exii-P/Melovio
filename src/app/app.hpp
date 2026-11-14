@@ -83,6 +83,7 @@ namespace melovio::ui {
         std::string lane_param = "pitch";
         bool follow_playhead = true;
         bool snap_enabled = true;
+        bool show_ghost = true;          // draw the other tracks' notes faintly in the piano roll
         NoteId edit_lyric_note = 0; bool edit_lyric_open = false;
 
         std::vector<Diagnostic> diagnostics;
@@ -127,6 +128,8 @@ namespace melovio::ui {
         void select_only(NoteId id) { selection.clear(); selection.insert(id); }
         std::vector<Note*> selected_notes();
         void copy_selection(bool cut); void paste_at(Tick t);
+        void duplicate_selection();      // copies the selection right after itself (Ctrl+D)
+        void extend_selection();         // stretches each selected note to the next note (or the next grid line if it is the last)
         void delete_selection(); void transpose_selection(int semis); void nudge_selection(Tick dt); void quantize_selection();
         void select_all();
         Tick snap(Tick t) const { return snap_enabled ? snap_to_grid(t, grid_ticks(grid, project.tempo_map.ppq())) : t; }
