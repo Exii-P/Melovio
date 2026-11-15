@@ -91,6 +91,22 @@ namespace melovio {
     }
     Tick Project::end_tick() const { Tick e = 0; for (auto& t : tracks) e = std::max(e, t.end_tick()); return e; }
 
+    const std::vector<SpeechKind>& speech_kinds() {
+        static const std::vector<SpeechKind> k = {
+            { "statement", "Statement", "Plain statement: starts a little high and falls at the end." },
+            { "question",  "Question",  "Question: dips, then rises sharply at the end." },
+            { "flat",      "Flat",      "No intonation: a level monotone (deadpan, chanting)." },
+            { "trail",     "Trailing off", "Steady fall across the line." },
+            { "emphatic",  "Emphatic",  "Rises to a stress in the middle and comes back down." },
+            { "ne",        "Ending ね", "Rising ね-style ending, seeking agreement." },
+            { "yo",        "Ending よ", "Falling よ-style ending, asserting." },
+            { "ka",        "Ending か", "Rising か-style question ending." },
+            { "no",        "Ending の", "Soft rise at the end." },
+        };
+        return k;
+    }
+    bool is_speech_kind(const std::string& id) { for (auto& k : speech_kinds()) if (id == k.id) return true; return false; }
+
     void Project::sort_markers() {
         std::stable_sort(markers.begin(), markers.end(), [](const Marker& a, const Marker& b) { return a.tick < b.tick; });
     }

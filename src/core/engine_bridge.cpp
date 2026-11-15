@@ -57,6 +57,12 @@ namespace melovio {
             if (plan.auto_expression) s.auto_expression(true);
             for (auto& n : plan.notes) {
                 wv::NoteRef r = s.note_at(n.start, n.midi, n.dur, n.engine_lyric, n.velocity);
+                if (!n.speech.empty()) {
+                    // Same treatment as the engine's Singer::say(): intonation moves pitch only, no vibrato/scoop/fall, morae weighted by type.
+                    wv::Style& st = r.style(); st.vibrato_depth = 0.f; st.scoop = 0.f; st.exit_fall = 0.f; st.mora_weighting = 1.f; st.portamento = 0.02f;
+                    wv::Curve c; for (int i = 0; i <= 12; ++i) { const double u = i / 12.0; c.push_back({ u * n.dur, wv::speech_contour(n.speech, u) }); }
+                    r.bend(c);
+                }
                 for (auto& kv : n.style) if (float wv::Style::* m = wv::style_field(kv.first)) r.style().*m = kv.second;
             }
             for (auto& l : plan.lanes) {

@@ -38,6 +38,21 @@ namespace melovio::ui {
         int start = static_cast<int>(first->tick);
         ImGui::SetNextItemWidth(120);
         if (ImGui::InputInt("Start (ticks)", &start, static_cast<int>(grid_ticks(a.grid, tm.ppq())))) { start = std::max(0, start); const Tick d = start - first->tick; a.edit("Start"); for (auto* n : a.selected_notes()) n->tick = std::max<Tick>(0, n->tick + d); a.cur_track()->resolve_overlaps(a.selection); }
+        {   // Delivery: sung, or spoken with an intonation (the engine's speech mode)
+            const std::string cur = first->speech;
+            const char* shown = "Sung"; for (auto& k : speech_kinds()) if (cur == k.id) shown = k.label;
+            ImGui::SetNextItemWidth(160);
+            if (ImGui::BeginCombo("Delivery", shown)) {
+                if (ImGui::Selectable("Sung", cur.empty())) { a.edit("Delivery"); for (auto* n : a.selected_notes()) n->speech.clear(); }
+                ImGui::Separator(); ImGui::TextDisabled("Spoken");
+                for (auto& k : speech_kinds()) {
+                    if (ImGui::Selectable(k.label, cur == k.id)) { a.edit("Delivery"); for (auto* n : a.selected_notes()) n->speech = k.id; }
+                    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", k.tip);
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Sung: normal singing.\nSpoken: the line is recited at the note's pitch with speech intonation\n(no vibrato or scoop). Use one long note for a whole sentence.");
+        }
         float vel = first->velocity;
         if (ImGui::SliderFloat("Velocity", &vel, 0.f, 1.f, "%.2f")) { a.edit("Velocity", "vel"); for (auto* n : a.selected_notes()) n->velocity = vel; }
         if (ImGui::IsItemDeactivatedAfterEdit()) a.history.break_coalescing();

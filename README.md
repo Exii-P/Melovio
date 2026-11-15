@@ -1,8 +1,8 @@
 # Melovio
 
-Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with ghost notes of other tracks, duplicate/extend editing, section markers, a tempo strip and a velocity lane, a pronunciation (phoneme) editor, MIDI and lyric-sheet import/export, a voicebank manager, a voicebank workshop, and WAV export.
+Melovio is a standalone desktop application for writing Japanese singing-voice synthesis projects: a piano-roll editor with spoken-line (recitation) notes, ghost notes of other tracks, duplicate/extend editing, section markers, a tempo strip and a velocity lane, a pronunciation (phoneme) editor, MIDI and lyric-sheet import/export, a voicebank manager, a voicebank workshop, and WAV export.
 
-Current version: **0.4.0**.
+Current version: **0.5.0**.
 
 **Melovio Studio** is the application; **Wauvio-Vocal** is the synthesis backend it uses. They are separate things: the backend is vendored unmodified in `third_party/wauvio-cpp/` and is only touched through one bridge file (`src/core/engine_bridge.cpp`).
 
@@ -32,7 +32,7 @@ Current version: **0.4.0**.
 | CLI | `melovio-cli` | validate / render / package / analyze without a GUI |
 | Tests | `melovio_tests` | doctest suite |
 
-Bundled voicebanks (in `voicebanks/`): Yune (1.5.2 and 1.0.0), Koharu, Reiha, Itsuki and Kyouka. The Voicebanks panel (or `melovio-cli voicebanks`) shows what is installed.
+Bundled voicebanks (in `voicebanks/`): Yune (V1 and V2), Koharu, Reiha, Itsuki and Kyouka. The Voicebanks panel (or `melovio-cli voicebanks`) shows what is installed.
 
 ## Quick start
 
@@ -150,6 +150,22 @@ If a project needs a voicebank that is not installed you get a dialog with **Loc
 
 ### Playback
 Space = play/pause, Stop returns to the cursor, `|<` rewinds, *Preview sel.* (Enter) plays the selected notes. Synthesis happens on a background thread, so the UI never blocks; the transport bar shows a cancellable render progress bar. After edits, the next Play re-renders (unchanged phrases come from a cache).
+
+### Spoken lines (recitation)
+Any note can be **Spoken** instead of sung: select it and choose **Delivery** in Note Properties (or right-click > *Delivery*). A spoken note is recited at the note's pitch using the engine's speech mode: no vibrato, scoop or exit fall, morae weighted by type, and the pitch follows an intonation contour across the length of the note. Spoken notes show a dashed white edge in the piano roll.
+
+| Delivery | Contour |
+|---|---|
+| Statement | starts a little high, falls at the end |
+| Question | dips, then rises sharply at the end |
+| Flat | level monotone (deadpan, chanting) |
+| Trailing off | steady fall |
+| Emphatic | rises to a stress in the middle, comes back down |
+| Ending ね / よ / か / の | rising ね, falling よ, rising か, soft rising の |
+
+Use **one long note per sentence**: put the whole sentence in the lyric (kana or romaji; kanji still needs a reading) and make the note as long as you want the line to last. The note's length sets the speaking speed, so a long sentence on a short note is flagged ("too many morae"). Per-note voice parameters (brightness, breathiness...) and parameter lanes still apply and are added on top; a per-note vibrato setting overrides the speech default.
+
+Limits: one contour per note (split a line into several notes if it needs more than one), spoken notes follow the same monophonic and voice-range rules as sung notes, and the speech setting is not exported to MIDI (the note exports as a plain note).
 
 ### Lyrics and pronunciation
 The **Phonemes & Lyrics** panel shows, for the selected note, the syllables and phonemes the engine will sing, with block widths proportional to each syllable's share of the note.
@@ -281,7 +297,7 @@ UTF-8 JSON with `format` = `"melovio-project"` and `format_version` = `1`. Newer
     "natural": 0.0, "natural_take": 1, "auto_expression": false,
     "gain_db": 0.0, "pan": 0.0, "mute": false, "solo": false,
     "lanes": [ { "param": "pitch", "points": [ { "tick": 0, "value": 0.0 } ] } ],
-    "notes": [ { "id": 1, "tick": 0, "length": 460, "pitch": 69, "lyric": "さ", "phonemes": "", "velocity": 0.75, "offset_ms": 0.0, "params": {} } ]
+    "notes": [ { "id": 1, "tick": 0, "length": 460, "pitch": 69, "lyric": "さ", "phonemes": "", "speech": "", "velocity": 0.75, "offset_ms": 0.0, "params": {} } ]
   } ]
 }
 ```
@@ -290,6 +306,7 @@ UTF-8 JSON with `format` = `"melovio-project"` and `format_version` = `1`. Newer
 - **Validation**: strict; errors name the offending field (e.g. `tracks[0].notes[3].pitch`). Some out-of-range values (velocity, pan, ...) are clamped silently; unknown parameters/lanes are dropped with a warning.
 - **Autosave** files wrap the same JSON in `{ "original_path", "modified", "project" }` and live outside the project directory.
 - `phonemes`, when non-empty, replaces the lyric as the sung pronunciation (Wauvio phoneme notation, e.g. `{k a}`).
+- `speech` (optional): empty or absent means sung; otherwise one of `statement`, `question`, `flat`, `trail`, `emphatic`, `ne`, `yo`, `ka`, `no`. An unknown value is ignored with a warning (`project.unknown_speech`) and the note is sung.
 
 ## Synthesis pipeline
 
@@ -430,12 +447,13 @@ third_party/wauvio-cpp/  untouched engine snapshot
 
 ## Features and status
 
-Status of version 0.4.0.
+Status of version 0.5.0.
 
 ### Implemented
 - **Projects**: new, open, save, save as, recent files, unsaved-change prompts, metadata, relative resource paths, missing-voicebank detection + locate, autosave to a separate folder, crash recovery, atomic writes, strict loading with field-named errors.
 - **Timeline**: tempo changes, time-signature changes, bars/beats, triplet grids, quantize/snap.
 - **Piano roll**: duplicate, extend to next note, ghost notes of other tracks, section markers, tempo strip (add/move/edit/delete tempo changes), velocity lane, create, delete, move, resize (both edges), multi-select/rubber band, copy/cut/paste, quantize, snap, transposition, nudge, playhead, loop region, zoom/scroll, undo/redo.
+- **Spoken lines**: per-note speech delivery with nine intonation contours, rendered by the engine's speech mode.
 - **Pronunciation**: lyric input (kana/romaji/phoneme notation), phoneme + syllable visualization, manual override with validation, per-syllable timing, particle helper, bulk lyric assignment, user reading dictionary, unrepresentable-kana flags.
 - **Parameter lanes**: the 12 expression channels the engine really has, plus a per-note velocity lane.
 - **MIDI and lyrics**: Standard MIDI import/export (lyrics, tempo, time signatures, markers), lyric-sheet assignment by word or kana.

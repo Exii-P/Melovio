@@ -11,12 +11,20 @@
 namespace melovio {
     using NoteId = uint64_t;
 
+    // Spoken delivery ("recitation"). A note with a speech kind is rendered with the engine's speech intonation instead of as a sung
+    // note: pitch is the speaking pitch, vibrato/scoop/exit-fall are off, morae are weighted by type, and the pitch follows the
+    // chosen intonation contour across the note's length. An empty kind means sung.
+    struct SpeechKind { const char* id; const char* label; const char* tip; };
+    const std::vector<SpeechKind>& speech_kinds();
+    bool is_speech_kind(const std::string& id);
+
     struct Note {
         NoteId id = 0;
         Tick tick = 0;                  // start, in project ticks
         Tick length = 480;
         int pitch = 60;                 // MIDI note number
         std::string lyric = "あ";       // as typed: kana, romaji, or "{k a}" phoneme notation
+        std::string speech;             // "" = sung, otherwise one of speech_kinds() ids
         std::string phonemes;           // pronunciation override (Wauvio phoneme notation). When non-empty it replaces the lyric.
         float velocity = 0.75f;         // 0..1
         double offset_ms = 0.0;         // timing offset applied at render (negative = earlier), does not move the note on the grid

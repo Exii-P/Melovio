@@ -161,3 +161,43 @@ TEST_CASE("rendering an empty project or track is not an error") {
     Project p; p.add_track("empty", "yune");
     Renderer r(banks()); auto m = r.render_mix(p, {}); REQUIRE(m); CHECK(m->peak() == 0.0);
 }
+
+TEST_CASE("spoken delivery: speech kinds, plan, hash, JSON") {
+    CHECK(is_speech_kind("question")); CHECK(is_speech_kind("flat")); CHECK_FALSE(is_speech_kind("")); CHECK_FALSE(is_speech_kind("shout"));
+    Project p = small_project(); PronunciationEngine pe; const Voicebank& vb = *bundled_library().find("yune");
+    BuiltPlan sung = build_track_plan(p, p.tracks[0], vb, pe);
+    p.tracks[0].notes[1].speech = "question";
+    BuiltPlan spoken = build_track_plan(p, p.tracks[0], vb, pe);
+    CHECK(sung.plan.notes[1].speech.empty());
+    CHECK(spoken.plan.notes[1].speech == "question");
+    CHECK(spoken.plan.notes[0].speech.empty());
+    CHECK(spoken.hash != sung.hash);                                               // the phrase cache must not serve sung audio for a spoken note
+    p.tracks[0].notes[1].speech = "bogus";
+    CHECK(build_track_plan(p, p.tracks[0], vb, pe).plan.notes[1].speech.empty());   // unknown kinds are never sent to the engine
+
+    p.tracks[0].notes[1].speech = "ne"; p.tracks[0].notes[2].speech = "flat";
+    std::vector<Diagnostic> w;
+    auto q = project_from_json(project_to_json(p), &w);
+    REQUIRE(q.ok());
+    CHECK(q->tracks[0].notes[0].speech.empty()); CHECK(q->tracks[0].notes[1].speech == "ne"); CHECK(q->tracks[0].notes[2].speech == "flat");
+    // unknown kind in a file: warned about, note is sung
+    std::string txt = project_to_json(p); const size_t at = txt.find("\"ne\""); REQUIRE(at != std::string::npos); txt.replace(at, 4, "\"zzz\"");
+    w.clear(); auto r = project_from_json(txt, &w); REQUIRE(r.ok());
+    CHECK(r->tracks[0].notes[1].speech.empty());
+    bool warned = false; for (auto& d : w) warned |= d.code == "project.unknown_speech"; CHECK(warned);
+}
+
+TEST_CASE("integration: spoken delivery really changes the sound (intonation contour, no vibrato)") {
+    Project p; Track& t = p.add_track("Voice", "yune"); p.ensure_voicebank_ref("yune", "1.0.0", "yune");
+    Note n; n.tick = 0; n.length = 1920; n.pitch = 64; n.lyric = "ありがとう"; p.add_note(t, n);
+    Renderer r(banks()); RenderOptions o; o.sample_rate = 44100;
+    auto render = [&](const std::string& kind) { p.tracks[0].notes[0].speech = kind; auto m = r.render_track(p, p.tracks[0], o); REQUIRE(m); return *m; };
+    const auto flat = render("flat"), question = render("question"), sung = render("");
+    const double base = 261.63 * std::pow(2.0, 4.0 / 12.0);                         // E4 = MIDI 64
+    for (double a : { 0.15, 0.6, 1.1, 1.6 }) CHECK(f0_of(flat, 44100, a, a + 0.2) == doctest::Approx(base).epsilon(0.03));   // flat = level
+    const double early = f0_of(question, 44100, 0.1, 0.4), late = f0_of(question, 44100, 1.65, 1.9);
+    CHECK(late > early * 1.10);                                                    // question: rising end (several semitones)
+    CHECK(rms_of(question, 44100, 0.1, 1.8) > 0.01);                               // still audible
+    CHECK(question != sung); CHECK(flat != question);
+    CHECK(render("question") == question);                                         // deterministic
+}

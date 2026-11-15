@@ -31,7 +31,7 @@ namespace melovio {
         hash_str(h, p.persona); hash_pod(h, p.persona_amount); hash_pod(h, p.natural); hash_pod(h, p.natural_take); hash_pod(h, p.auto_expression); hash_pod(h, p.seed);
         for (auto& kv : p.style) { hash_str(h, kv.first); hash_pod(h, kv.second); }
         for (auto& n : p.notes) {
-            hash_pod(h, n.start); hash_pod(h, n.dur); hash_pod(h, n.midi); hash_pod(h, n.velocity); hash_str(h, n.engine_lyric);
+            hash_pod(h, n.start); hash_pod(h, n.dur); hash_pod(h, n.midi); hash_pod(h, n.velocity); hash_str(h, n.engine_lyric); hash_str(h, n.speech);
             for (auto& kv : n.style) { hash_str(h, kv.first); hash_pod(h, kv.second); }
         }
         for (auto& l : p.lanes) { hash_str(h, l.name); for (auto& c : l.curve) { hash_pod(h, c.first); hash_pod(h, c.second); } }
@@ -76,6 +76,7 @@ namespace melovio {
             }
             pn.midi = n.pitch; pn.velocity = std::clamp(n.velocity, 0.f, 1.f); pn.source_index = static_cast<int>(i);
             pn.engine_lyric = pron.engine_lyric(n.lyric, phon);
+            if (is_speech_kind(n.speech)) pn.speech = n.speech;
             for (auto& kv : n.params) { const ParamDef* d = find_param(kv.first); if (d && d->note_param) pn.style[d->id] = std::clamp(kv.second, d->min, d->max); }
             plan.notes.push_back(std::move(pn));
         }

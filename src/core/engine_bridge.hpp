@@ -35,6 +35,7 @@ namespace melovio {
         int midi = 60;
         float velocity = 0.75f;
         std::string engine_lyric;                 // what the engine parses (kana / romaji / "{phonemes}")
+        std::string speech;                       // spoken delivery: a speech_kinds() id, or empty for sung
         std::map<std::string, float> style;       // per-note Style overrides
         int source_index = -1;                    // index in the project track (for diagnostics)
     };

@@ -66,6 +66,7 @@ namespace melovio {
             for (auto& n : t.notes) {
                 json nj = { { "id", n.id }, { "tick", n.tick }, { "length", n.length }, { "pitch", n.pitch }, { "lyric", n.lyric }, { "velocity", n.velocity } };
                 if (!n.phonemes.empty()) nj["phonemes"] = n.phonemes;
+                if (!n.speech.empty()) nj["speech"] = n.speech;
                 if (n.offset_ms != 0.0) nj["offset_ms"] = n.offset_ms;
                 if (!n.params.empty()) nj["params"] = n.params;
                 tj["notes"].push_back(std::move(nj));
@@ -168,6 +169,11 @@ namespace melovio {
                             if (n.pitch < 0 || n.pitch > 127) throw ParseError{ nctx + ".pitch: outside 0..127" };
                             n.lyric = get_or<std::string>(nj, "lyric", "", nctx); n.phonemes = get_or<std::string>(nj, "phonemes", "", nctx);
                             n.velocity = std::clamp(get_or<float>(nj, "velocity", 0.75f, nctx), 0.f, 1.f); n.offset_ms = get_or<double>(nj, "offset_ms", 0.0, nctx);
+                            n.speech = get_or<std::string>(nj, "speech", "", nctx);
+                            if (!n.speech.empty() && !is_speech_kind(n.speech)) {
+                                if (warnings) warnings->push_back({ Severity::Warning, "project.unknown_speech", nctx + ".speech: unknown kind '" + n.speech + "'; the note will be sung" });
+                                n.speech.clear();
+                            }
                             n.params = params_from(nj.value("params", json()), nctx + ".params");
                             max_id = std::max(max_id, n.id);
                             t.notes.push_back(std::move(n));

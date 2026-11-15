@@ -188,6 +188,9 @@ namespace melovio::ui {
                 dl->PopClipRect();
             }
             if (!n.phonemes.empty()) dl->AddCircleFilled(ImVec2(x1 - 7, y0 + 5), 2.5f, IM_COL32(255, 240, 120, 255));     // pronunciation override marker
+            if (!n.speech.empty()) {   // spoken notes: dashed top edge so they read differently from sung ones
+                for (float dx = x0 + 3; dx < x1 - 4; dx += 6) dl->AddLine(ImVec2(dx, y0 + 2), ImVec2(std::min(dx + 3, x1 - 4), y0 + 2), IM_COL32(255, 255, 255, 220), 2.f);
+            }
             if (n.offset_ms != 0.0) dl->AddTriangleFilled(ImVec2(x0, y0 + pst - 1), ImVec2(x0 + 6, y0 + pst - 1), ImVec2(x0, y0 + pst - 7), IM_COL32(120, 220, 255, 255));
         }
         // rubber band
@@ -476,6 +479,12 @@ namespace melovio::ui {
                 ImGui::EndMenu();
             }
             if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, has_sel)) a.duplicate_selection();
+            if (ImGui::BeginMenu("Delivery", has_sel)) {
+                if (ImGui::MenuItem("Sung")) { a.edit("Delivery"); for (auto* n : a.selected_notes()) n->speech.clear(); }
+                ImGui::Separator();
+                for (auto& k : speech_kinds()) if (ImGui::MenuItem(k.label)) { a.edit("Delivery"); for (auto* n : a.selected_notes()) n->speech = k.id; }
+                ImGui::EndMenu();
+            }
             if (ImGui::MenuItem("Quantize to grid", "Q", false, has_sel)) a.quantize_selection();
             if (ImGui::MenuItem("Extend to next note", "E", false, has_sel)) a.extend_selection();
             if (ImGui::MenuItem("Set loop to selection", nullptr, false, has_sel)) {
